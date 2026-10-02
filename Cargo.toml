@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/keyflow-core", "crates/keyflow-platform", "crates/keyflow-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Dependensi sengaja belum ditambahkan. Tambahkan dengan `cargo add` agar
+# mendapat versi terbaru, dan deklarasikan versi bersama di
+# [workspace.dependencies] bila dipakai lebih dari satu crate.
+# Dependensi OS-spesifik wajib di [target.'cfg(...)'.dependencies].
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+dbg_macro = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+undocumented_unsafe_blocks = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

@@ -1,0 +1,4 @@
+.remember/
+target/
+*.log
+.DS_Store
