@@ -1,5 +1,8 @@
 name: Release
 
+# Rilis dibuat dengan mendorong tag `vX.Y.Z` (atau `vX.Y.Z-rc1` untuk pra-rilis).
+# `workflow_dispatch` hanya membangun artefak (uji coba), tanpa menerbitkan release.
+
 on:
   push:
     tags:
@@ -7,14 +10,58 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  verify:
+    name: Verifikasi (tag, fmt, clippy, test)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Pastikan tag sama dengan versi di Cargo.toml
+        shell: bash
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Versi Cargo.toml: ${CARGO_VERSION}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            case "${GITHUB_REF_NAME}" in
+              "v${CARGO_VERSION}"|"v${CARGO_VERSION}-"*) ;;
+              *)
+                echo "::error::Tag ${GITHUB_REF_NAME} tidak sesuai versi Cargo.toml (v${CARGO_VERSION}). Naikkan versi di Cargo.toml atau ganti tag."
+                exit 1
+                ;;
+            esac
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxtst-dev libxext-dev
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Lint with Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --locked
+
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.asset }})
+    needs: verify
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -22,20 +69,24 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            asset: windows-x64
             binary: keyflow.exe
-            archive_ext: zip
-          - os: macos-13
-            target: x86_64-apple-darwin
-            binary: keyflow
-            archive_ext: tar.gz
+          # Kedua arsitektur macOS dibangun di runner Apple Silicon (runner Intel
+          # macos-13 sudah dihentikan GitHub); Rust melakukan cross-compile native.
           - os: macos-latest
             target: aarch64-apple-darwin
+            asset: macos-arm64
             binary: keyflow
-            archive_ext: tar.gz
-          - os: ubuntu-latest
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            asset: macos-x64
+            binary: keyflow
+          # Runner lama dipilih sengaja: glibc 2.35 membuat binary jalan di Ubuntu 22.04+,
+          # Debian 12+, Fedora, dan distro yang lebih baru.
+          - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            asset: linux-x64
             binary: keyflow
-            archive_ext: tar.gz
 
     steps:
       - name: Checkout repository
@@ -46,6 +97,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -53,54 +108,79 @@ jobs:
           sudo apt-get install -y libx11-dev libxtst-dev libxext-dev
 
       - name: Build release binary
-        run: cargo build --release --bin keyflow --target ${{ matrix.target }}
+        run: cargo build --release --locked --bin keyflow --target ${{ matrix.target }}
 
-      - name: Prepare package directory
+      - name: Sign binary ad-hoc (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          BIN="target/${{ matrix.target }}/release/keyflow"
+          codesign --force --sign - "$BIN"
+          codesign --verify --verbose "$BIN"
+
+      # Dilewati untuk x86_64 macOS (butuh Rosetta di runner arm64) dan Windows
+      # (subsystem GUI membuat kode keluar di bash tidak dapat diandalkan).
+      - name: Smoke test (biner bisa dijalankan)
+        if: matrix.target != 'x86_64-apple-darwin' && runner.os != 'Windows'
         shell: bash
         run: |
-          PACKAGE_DIR="keyflow-${{ matrix.target }}"
-          mkdir -p "$PACKAGE_DIR"
-          
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            cp "target/${{ matrix.target }}/release/keyflow.exe" "$PACKAGE_DIR/"
-          else
-            cp "target/${{ matrix.target }}/release/keyflow" "$PACKAGE_DIR/"
+          BIN="target/${{ matrix.target }}/release/${{ matrix.binary }}"
+          set +e
+          "$BIN" __smoke_test__
+          CODE=$?
+          set -e
+          if [ "$CODE" -ne 1 ]; then
+            echo "::error::Smoke test gagal: kode keluar $CODE (diharapkan 1 untuk perintah tidak dikenal)"
+            exit 1
           fi
-          
-          cp README.md "$PACKAGE_DIR/"
-          mkdir -p "$PACKAGE_DIR/examples"
-          cp examples/config.yaml "$PACKAGE_DIR/examples/"
 
-      - name: Archive binary (Windows)
-        if: runner.os == 'Windows'
+      - name: Package
         shell: bash
         run: |
-          ARCHIVE_NAME="keyflow-${{ matrix.target }}.zip"
-          7z a "$ARCHIVE_NAME" "./keyflow-${{ matrix.target }}/*"
-          certutil -hashfile "$ARCHIVE_NAME" SHA256 | findstr -v "hash" | findstr -v "CertUtil" | tr -d ' \r\n' > "${ARCHIVE_NAME}.sha256"
-          echo "SHA256 for $ARCHIVE_NAME: $(cat "${ARCHIVE_NAME}.sha256")"
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="v${CARGO_VERSION}-dev"
+          fi
+          NAME="keyflow-${VERSION}-${{ matrix.asset }}"
 
-      - name: Archive binary (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          ARCHIVE_NAME="keyflow-${{ matrix.target }}.tar.gz"
-          tar -czf "$ARCHIVE_NAME" -C "keyflow-${{ matrix.target }}" .
-          sha256sum "$ARCHIVE_NAME" | awk '{print $1}' > "${ARCHIVE_NAME}.sha256"
-          echo "SHA256 for $ARCHIVE_NAME: $(cat "${ARCHIVE_NAME}.sha256")"
+          mkdir -p "${NAME}/examples"
+          cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "${NAME}/"
+          cp README.md "${NAME}/"
+          cp examples/config.yaml "${NAME}/examples/"
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ARCHIVE="${NAME}.zip"
+            7z a -tzip "${ARCHIVE}" "./${NAME}"
+          else
+            chmod +x "${NAME}/${{ matrix.binary }}"
+            ARCHIVE="${NAME}.tar.gz"
+            tar -czf "${ARCHIVE}" "${NAME}"
+          fi
+
+          # Format `hash  nama-berkas`, bisa diperiksa pengguna dengan `sha256sum -c`.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          else
+            shasum -a 256 "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          fi
+          cat "${ARCHIVE}.sha256"
+          echo "PACKAGE_NAME=${NAME}" >> "$GITHUB_ENV"
 
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: keyflow-${{ matrix.target }}
-          path: |
-            keyflow-${{ matrix.target }}.*
+          name: keyflow-${{ matrix.asset }}
+          path: ${{ env.PACKAGE_NAME }}.*
+          if-no-files-found: error
 
   publish:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - name: Download all built artifacts
         uses: actions/download-artifact@v4
@@ -112,11 +192,28 @@ jobs:
           mkdir -p release-files
           find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release-files/ \;
           ls -la release-files/
+          test "$(find release-files -type f \( -name '*.zip' -o -name '*.tar.gz' \) | wc -l)" -eq 4
 
-      - name: Create or update GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release-files/*
+          fail_on_unmatched_files: true
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
+          body: |
+            ## Unduh
+
+            | Sistem | Berkas |
+            |---|---|
+            | Windows 10/11 (x64) | `keyflow-*-windows-x64.zip` |
+            | macOS Apple Silicon (M1+) | `keyflow-*-macos-arm64.tar.gz` |
+            | macOS Intel | `keyflow-*-macos-x64.tar.gz` |
+            | Linux x64 (X11) | `keyflow-*-linux-x64.tar.gz` |
+
+            Ekstrak lalu jalankan `keyflow` (aplikasi tray). Buka pengaturan dengan `keyflow settings` atau menu tray.
+            Verifikasi unduhan: `sha256sum -c <berkas>.sha256` (macOS: `shasum -a 256 -c <berkas>.sha256`).
+
+            > Biner belum ditandatangani sertifikat berbayar: Windows menampilkan SmartScreen ("Run anyway") dan macOS meminta izin
+            > (`xattr -d com.apple.quarantine keyflow`). Lihat bagian "Unduh dan pakai" di README untuk izin macOS dan batasan Wayland.

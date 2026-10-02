@@ -51,6 +51,42 @@ KeyFlow **bukan** file manager tersendiri dan tidak memiliki jendela penjelajah 
 
 ---
 
+## 📥 Unduh dan Pakai
+
+Binary siap pakai tersedia di halaman [Releases](https://github.com/xdn27/keyflow/releases). Tidak perlu memasang Rust.
+
+| Sistem | Berkas |
+|---|---|
+| Windows 10/11 (x64) | `keyflow-vX.Y.Z-windows-x64.zip` |
+| macOS Apple Silicon (M1 dan setelahnya) | `keyflow-vX.Y.Z-macos-arm64.tar.gz` |
+| macOS Intel | `keyflow-vX.Y.Z-macos-x64.tar.gz` |
+| Linux x64 (sesi X11) | `keyflow-vX.Y.Z-linux-x64.tar.gz` |
+
+Setiap berkas disertai `.sha256`. Verifikasi unduhan sebelum membuka:
+
+```bash
+sha256sum -c keyflow-vX.Y.Z-linux-x64.tar.gz.sha256      # Linux
+shasum -a 256 -c keyflow-vX.Y.Z-macos-arm64.tar.gz.sha256  # macOS
+```
+
+**Windows**: ekstrak zip lalu jalankan `keyflow.exe`; ikon KeyFlow muncul di system tray. Biner belum ditandatangani sertifikat berbayar, jadi SmartScreen dapat menampilkan peringatan: klik **Informasi lebih lanjut → Tetap jalankan**.
+
+**macOS**: ekstrak, lalu hapus penanda karantina karena biner belum dinotarisasi Apple, dan jalankan dari Terminal:
+
+```bash
+tar -xzf keyflow-vX.Y.Z-macos-arm64.tar.gz && cd keyflow-vX.Y.Z-macos-arm64
+xattr -d com.apple.quarantine keyflow
+./keyflow
+```
+
+Beri izin **Accessibility** dan **Input Monitoring** saat diminta (lihat [docs/PERMISSIONS.md](docs/PERMISSIONS.md)).
+
+**Linux**: ekstrak lalu jalankan `./keyflow` dalam sesi **X11**. Pada Wayland, KeyFlow sengaja tidak menelan tombol apa pun (fail-open); lihat [docs/PLATFORM_SUPPORT.md](docs/PLATFORM_SUPPORT.md). Biner dibangun di Ubuntu 22.04 (glibc 2.35), sehingga berjalan di distro seumur itu atau lebih baru.
+
+Buka jendela pengaturan dengan `keyflow settings`. Di Windows, menu tray juga punya item **Pengaturan...**. Ikon tray saat ini hanya tersedia di Windows; di macOS dan Linux, jalankan KeyFlow dari terminal atau daftarkan sebagai aplikasi startup.
+
+---
+
 ## 📦 Pemasangan & Kompilasi
 
 ### Prasyarat
@@ -73,8 +109,8 @@ KeyFlow **bukan** file manager tersendiri dan tidak memiliki jendela penjelajah 
 Clone repositori dan kompilasi versi rilis:
 
 ```bash
-git clone https://github.com/d4n/shortcut-file-manager.git
-cd shortcut-file-manager
+git clone https://github.com/xdn27/keyflow.git
+cd keyflow
 
 # Jalankan test suite
 cargo test --workspace
@@ -155,6 +191,21 @@ cargo test --workspace
 ```
 
 Bagi pengembang atau kontributor AI, silakan pelajari peta dokumentasi arsitektur di [AGENTS.md](AGENTS.md) dan panduan uji manual di [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md).
+
+### Membuat Rilis
+
+Rilis dibuat otomatis oleh `.github/workflows/release.yml` saat tag versi didorong:
+
+1. Naikkan `version` di `Cargo.toml` (bagian `[workspace.package]`) dan commit.
+2. Buat dan dorong tag yang sama persis dengan versi tersebut:
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+   Tag dengan akhiran (mis. `v0.2.0-rc1`) terbit sebagai pra-rilis.
+3. Workflow memverifikasi (fmt, clippy, test, kecocokan tag dengan versi), membangun biner Windows, macOS (arm64 dan x64), dan Linux, lalu menerbitkan release dengan arsip dan `.sha256` per platform.
+
+Menjalankan workflow lewat tombol **Run workflow** (`workflow_dispatch`) hanya membangun artefak untuk uji coba; tidak ada release yang diterbitkan.
 
 ---
 

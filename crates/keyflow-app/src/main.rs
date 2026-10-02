@@ -1,5 +1,12 @@
 //! Titik masuk aplikasi KeyFlow (T2.1–T2.8).
 
+// Build rilis Windows berjalan tanpa jendela konsol (aplikasi tray). Build debug
+// tetap memakai konsol agar log `tracing` terlihat saat pengembangan.
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 pub mod settings_ui;
 pub mod worker;
 
