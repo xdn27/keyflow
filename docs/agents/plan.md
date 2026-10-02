@@ -69,10 +69,10 @@ Dependensi kandidat: `windows`, `tray-icon`, `notify-rust`, `tracing-subscriber`
 
 ## M4 - Linux (X11)
 
-- [ ] **T4.1** Hook X11 (`rdev` grab atau key grab) + window fokus (`_NET_ACTIVE_WINDOW`).
-- [ ] **T4.2** Folder aktif/seleksi via fallback clipboard (`text/uri-list`) dan judul window.
-- [ ] **T4.3** Deteksi Wayland: peringatan jelas, tidak menelan tombol apa pun.
-- [ ] **T4.4** Uji manual Linux; perbarui dokumentasi dan paket sistem di CI.
+- [x] **T4.1** Hook X11 (`rdev` grab atau key grab) + window fokus (`_NET_ACTIVE_WINDOW`).
+- [x] **T4.2** Folder aktif/seleksi via fallback clipboard (`text/uri-list`) dan judul window.
+- [x] **T4.3** Deteksi Wayland: peringatan jelas, tidak menelan tombol apa pun.
+- [x] **T4.4** Uji manual Linux; perbarui dokumentasi dan paket sistem di CI.
 
 ## M5 - Pengemasan
 

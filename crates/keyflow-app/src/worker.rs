@@ -91,11 +91,21 @@ fn handle_file_rule<C: FileManagerContext>(
     undo_manager: &mut UndoManager,
     on_notify: &(dyn Fn(&str, &str) + Send + Sync),
 ) {
-    // 0. Pertahanan mendalam: verifikasi ulang bahwa file manager (Explorer / Finder)
+    // 0. Pertahanan mendalam: verifikasi ulang bahwa file manager
+    // (Explorer / Finder / Nautilus / Dolphin / Thunar / Nemo / PCManFM / Caja)
     // masih merupakan jendela terdepan sebelum mengeksekusi aksi file.
     if let Ok(win) = context.focused_window() {
         let proc = win.process_name.to_lowercase();
-        if !proc.is_empty() && !proc.contains("finder") && !proc.contains("explorer") {
+        let is_fm = proc.contains("finder")
+            || proc.contains("explorer")
+            || proc.contains("nautilus")
+            || proc.contains("dolphin")
+            || proc.contains("thunar")
+            || proc.contains("nemo")
+            || proc.contains("pcmanfm")
+            || proc.contains("caja")
+            || proc.contains("files");
+        if !proc.is_empty() && !is_fm {
             tracing::info!(
                 proc,
                 "File manager tidak lagi aktif saat worker akan mengeksekusi rule; dibatalkan demi keamanan data."

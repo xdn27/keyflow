@@ -22,8 +22,11 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      # TODO(M4): paket sistem X11 untuk ubuntu (mis. libx11-dev, libxtst-dev, libxdo-dev)
-      # dan libayatana-appindicator3-dev untuk tray; sesuaikan dengan dependensi yang dipilih.
+      - name: Install Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxtst-dev libxext-dev
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace

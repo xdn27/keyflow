@@ -8,16 +8,21 @@
 | Seleksi | COM / clipboard | AppleScript | Clipboard | Tidak |
 | `select_next` | Best-effort | Best-effort | Best-effort | Tidak |
 
-Status per milestone: Windows (Selesai M0-M2), macOS (Selesai M3: CGEventTap, Finder AppleScript, verifikasi izin), Linux X11 (M4). Matriks di atas mencerminkan fitur yang telah diimplementasikan di codebase.
+Status per milestone: Windows (Selesai M0-M2), macOS (Selesai M3: CGEventTap, Finder AppleScript, verifikasi izin), Linux X11 (Selesai M4: X11 sync grab dengan fail-open replay, deteksi `_NET_ACTIVE_WINDOW` & `WM_CLASS`, fallback clipboard `text/uri-list`, XTest fake_input, dan deteksi Wayland).
 
 ## Wayland
 
-Wayland sengaja membatasi global key grab dan deteksi window fokus demi keamanan. KeyFlow tidak berpura-pura mendukungnya: pada sesi Wayland, KeyFlow menampilkan peringatan, **tidak menelan tombol apa pun**, dan fitur dinonaktifkan. Gunakan sesi X11 atau XWayland-only bila memungkinkan.
+Wayland sengaja membatasi global key grab dan deteksi window fokus lintas-aplikasi demi keamanan. KeyFlow tidak berpura-pura mendukungnya: pada sesi Wayland, KeyFlow mendeteksi `XDG_SESSION_TYPE=wayland` atau `WAYLAND_DISPLAY`, menampilkan peringatan visual/log yang jelas, dan beroperasi dalam mode **fail-open** (tombol diteruskan ke sistem tanpa dimodifikasi atau ditelan).
 
 ## File manager yang didukung (MVP)
 
-- Windows: File Explorer (`explorer.exe`, class `CabinetWClass`)
-- macOS: Finder (`com.apple.finder`)
-- Linux: terbatas (strategi clipboard); integrasi Nautilus/Dolphin/Thunar menyusul
+- **Windows**: File Explorer (`explorer.exe`, class `CabinetWClass`)
+- **macOS**: Finder (`com.apple.finder`)
+- **Linux X11**:
+  - GNOME Files (Nautilus, `org.gnome.Nautilus` / `nautilus`)
+  - KDE Dolphin (`org.kde.dolphin` / `dolphin`)
+  - XFCE Thunar (`Thunar` / `thunar`)
+  - Cinnamon Nemo (`nemo`)
+  - PCManFM (`pcmanfm`) & MATE Caja (`caja`)
 
 File manager pihak ketiga (Total Commander, Directory Opus, dll.) direncanakan setelah MVP.
