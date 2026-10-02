@@ -14,6 +14,8 @@ pub mod macos;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
+pub mod mock;
+
 /// Kesalahan dari lapisan platform.
 #[derive(Debug)]
 pub enum PlatformError {

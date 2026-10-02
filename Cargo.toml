@@ -16,6 +16,14 @@ publish = false
 [workspace.dependencies]
 thiserror = "2.0"
 tracing = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_norway = "0.9"
+serde_json = "1.0"
+globset = "0.4"
+directories = "6.0"
+notify = "8.0"
+trash = "5.2"
+tempfile = "3.14"
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

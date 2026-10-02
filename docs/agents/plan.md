@@ -33,15 +33,15 @@ Tujuan: membuktikan kelayakan. Boleh kasar, tetapi simpan di `crates/keyflow-pla
 
 Dependensi kandidat: `serde`, `serde_yaml` (periksa status; alternatif `serde_yml`/`serde_norway`), `globset`, `thiserror`, `directories`, `notify`, `trash`, `tracing`; dev: `tempfile`, `assert_fs`.
 
-- [ ] **T1.1** Model config + parser YAML dengan `deny_unknown_fields`, `version`, pesan error dengan nomor baris. (`config.md`)
-- [ ] **T1.2** Validasi: tombol, aksi + field wajib, tujuan, duplikasi tombol per profil, glob, path berbahaya. Kumpulkan semua error.
-- [ ] **T1.3** Parser kombinasi tombol (`Ctrl+Shift+Z`, `1`).
-- [ ] **T1.4** Matcher: konteks 3 lapis, tabel rule terkompilasi (tombol -> kandidat), spesifisitas (lokasi tanpa wildcard > wildcard > tanpa lokasi), profil disabled.
-- [ ] **T1.5** Aksi file `move`/`copy`/`trash`/`rename` (template) + `on_conflict` (rename/skip/overwrite/ask), `create_missing_dirs`, lintas-drive (copy + verifikasi + hapus sumber), laporan hasil per file, `dry_run`. (`safety.md`)
-- [ ] **T1.6** Undo stack berlapis + log persisten JSON Lines (niat dicatat dan di-flush sebelum eksekusi, hasil sesudahnya), batas `undo_history_limit`, pemulihan aman.
-- [ ] **T1.7** Hot-reload (`notify`, debounce, swap `Arc` atomik), config valid terakhir dipertahankan saat gagal.
-- [ ] **T1.8** Mock platform (`MockKeyboardHook`, `MockFileManagerContext`) di `keyflow-platform` dan test alur end-to-end tanpa OS.
-- [ ] **T1.9** Test sesuai `testing.md`. Jalankan `data-safety-auditor` dan `code-reviewer`.
+- [x] **T1.1** Model config + parser YAML dengan `deny_unknown_fields`, `version`, pesan error dengan nomor baris. (`config.md`)
+- [x] **T1.2** Validasi: tombol, aksi + field wajib, tujuan, duplikasi tombol per profil, glob, path berbahaya. Kumpulkan semua error.
+- [x] **T1.3** Parser kombinasi tombol (`Ctrl+Shift+Z`, `1`).
+- [x] **T1.4** Matcher: konteks 3 lapis, tabel rule terkompilasi (tombol -> kandidat), spesifisitas (lokasi tanpa wildcard > wildcard > tanpa lokasi), profil disabled.
+- [x] **T1.5** Aksi file `move`/`copy`/`trash`/`rename` (template) + `on_conflict` (rename/skip/overwrite/ask), `create_missing_dirs`, lintas-drive (copy + verifikasi + hapus sumber), laporan hasil per file, `dry_run`. (`safety.md`)
+- [x] **T1.6** Undo stack berlapis + log persisten JSON Lines (niat dicatat dan di-flush sebelum eksekusi, hasil sesudahnya), batas `undo_history_limit`, pemulihan aman.
+- [x] **T1.7** Hot-reload (`notify`, debounce, swap `Arc` atomik), config valid terakhir dipertahankan saat gagal.
+- [x] **T1.8** Mock platform (`MockKeyboardHook`, `MockFileManagerContext`) di `keyflow-platform` dan test alur end-to-end tanpa OS.
+- [x] **T1.9** Test sesuai `testing.md`. Jalankan `data-safety-auditor` dan `code-reviewer`.
 
 **Selesai M1 bila**: semua test lolos tanpa OS asli, tidak ada jalur menimpa/menghapus permanen, audit keamanan data bersih.
 

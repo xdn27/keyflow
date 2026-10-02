@@ -5,8 +5,8 @@ Aplikasi desktop Rust (system tray) yang menjalankan **shortcut keyboard sadar k
 > Nama "KeyFlow" bersifat sementara. File ini dibaca semua agent (Claude Code, Qwen, Gemini CLI, Codex, OpenCode, Amp). `CLAUDE.md`, `GEMINI.md`, dan `QWEN.md` adalah symlink ke file ini. Edit hanya `AGENTS.md`.
 
 ## Status
-
-Skeleton diverifikasi dan toolchain dipasang (T0.0). Spike teknis Windows M0 selesai (T0.0-T0.4): hook keyboard `WH_KEYBOARD_LL`, pembacaan folder aktif & seleksi via COM Shell Windows, pemindahan file aman, dan laporan temuan di `docs/spikes/m0-findings.md`. Menunggu persetujuan sebelum lanjut ke M1 (Inti `keyflow-core`). Platform target: Windows, lalu macOS, lalu Linux (X11).
+ 
+Milestone M0 (Spike Windows) dan M1 (Inti `keyflow-core`, parser config, matcher konteks, aksi file aman, undo stack persisten crash-proof, hot-reload, mock platform, tes integrasi end-to-end, dan audit keamanan data) telah selesai 100% dan terverifikasi bersih. Menunggu persetujuan pengguna sebelum lanjut ke M2 (Aplikasi Windows lengkap). Platform target: Windows, lalu macOS, lalu Linux (X11).
 
 ## Perintah
 

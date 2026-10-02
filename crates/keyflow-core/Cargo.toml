@@ -8,3 +8,18 @@ publish.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_norway = { workspace = true }
+serde_json = { workspace = true }
+globset = { workspace = true }
+directories = { workspace = true }
+notify = { workspace = true }
+trash = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+keyflow-platform = { path = "../keyflow-platform" }
