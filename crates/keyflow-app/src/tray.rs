@@ -1,8 +1,9 @@
 //! System Tray icon dan menu kontekstual Windows (T2.4).
 
 use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crossbeam_channel::Sender;
 use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -24,6 +25,7 @@ pub struct TrayManager {
     is_paused_item: CheckMenuItem,
     undo_item: MenuItem,
     reload_item: MenuItem,
+    settings_item: MenuItem,
     open_config_item: MenuItem,
     open_log_item: MenuItem,
     quit_item: MenuItem,
@@ -31,6 +33,8 @@ pub struct TrayManager {
     log_path: PathBuf,
     worker_tx: Sender<WorkerTask>,
     is_enabled: Arc<AtomicBool>,
+    /// Proses jendela pengaturan yang sedang berjalan, agar tidak dibuka ganda.
+    settings_child: Mutex<Option<Child>>,
 }
 
 impl TrayManager {
@@ -47,6 +51,7 @@ impl TrayManager {
         let undo_item = MenuItem::new("Undo Terakhir (Ctrl+Shift+Z)", true, None);
         let separator1 = PredefinedMenuItem::separator();
         let reload_item = MenuItem::new("Reload Konfigurasi", true, None);
+        let settings_item = MenuItem::new("Pengaturan...", true, None);
         let open_config_item = MenuItem::new("Buka Folder Konfigurasi", true, None);
         let open_log_item = MenuItem::new("Buka File Log Undo", true, None);
         let separator2 = PredefinedMenuItem::separator();
@@ -55,6 +60,7 @@ impl TrayManager {
         menu.append(&is_paused_item)?;
         menu.append(&undo_item)?;
         menu.append(&separator1)?;
+        menu.append(&settings_item)?;
         menu.append(&reload_item)?;
         menu.append(&open_config_item)?;
         menu.append(&open_log_item)?;
@@ -74,6 +80,7 @@ impl TrayManager {
             is_paused_item,
             undo_item,
             reload_item,
+            settings_item,
             open_config_item,
             open_log_item,
             quit_item,
@@ -81,6 +88,7 @@ impl TrayManager {
             log_path,
             worker_tx,
             is_enabled,
+            settings_child: Mutex::new(None),
         })
     }
 
@@ -103,6 +111,8 @@ impl TrayManager {
                 let _ = self.worker_tx.send(WorkerTask::ExecuteUndo);
             } else if event.id == self.reload_item.id() {
                 result_action = TrayAction::ReloadConfig;
+            } else if event.id == self.settings_item.id() {
+                self.open_settings_window();
             } else if event.id == self.open_config_item.id() {
                 open_in_file_manager(&self.config_dir);
             } else if event.id == self.open_log_item.id() {
@@ -114,6 +124,33 @@ impl TrayManager {
         }
 
         result_action
+    }
+
+    /// Menjalankan `keyflow settings` sebagai proses terpisah (GUI tidak berbagi
+    /// event loop dengan tray/hook). Bila jendela masih terbuka, tidak membuka lagi.
+    fn open_settings_window(&self) {
+        let Ok(mut child_slot) = self.settings_child.lock() else {
+            return;
+        };
+        if let Some(child) = child_slot.as_mut() {
+            if matches!(child.try_wait(), Ok(None)) {
+                tracing::info!("Jendela pengaturan sudah terbuka");
+                return;
+            }
+        }
+        *child_slot = None;
+
+        let exe = match std::env::current_exe() {
+            Ok(exe) => exe,
+            Err(e) => {
+                tracing::warn!(error = %e, "Tidak dapat menentukan lokasi keyflow.exe");
+                return;
+            }
+        };
+        match std::process::Command::new(exe).arg("settings").spawn() {
+            Ok(child) => *child_slot = Some(child),
+            Err(e) => tracing::warn!(error = %e, "Gagal membuka jendela pengaturan"),
+        }
     }
 }
 
