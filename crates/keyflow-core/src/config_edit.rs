@@ -256,6 +256,20 @@ fn on_conflict_value(value: OnConflict) -> &'static str {
     }
 }
 
+/// Galat saat menyerialisasi konfigurasi ke YAML.
+#[derive(Debug, Error)]
+#[error("gagal menyerialisasi konfigurasi: {0}")]
+pub struct RenderError(String);
+
+/// Menulis ulang seluruh konfigurasi lewat serde. Komentar dan format asli hilang,
+/// jadi ini hanya jalur cadangan yang dipakai setelah konfirmasi pengguna.
+pub fn render_full(config: &Config) -> Result<String, RenderError> {
+    let body = serde_norway::to_string(config).map_err(|e| RenderError(e.to_string()))?;
+    Ok(format!(
+        "# Ditulis ulang oleh Pengaturan KeyFlow; komentar sebelumnya tidak dipertahankan.\n{body}"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -402,5 +416,41 @@ profiles:
             patch_settings(yaml, &Settings::default()),
             PatchResult::Unpatchable(_)
         ));
+    }
+}
+
+#[cfg(test)]
+mod render_tests {
+    use super::*;
+
+    #[test]
+    fn render_full_bisa_dibaca_kembali_dengan_isi_setara() {
+        let yaml = "\
+version: 1
+settings:
+  dry_run: true
+profiles:
+  - name: Foto
+    context:
+      path: \"D:/Foto/**\"
+      selection: image
+    rules:
+      - key: \"1\"
+        action: move
+        to: \"D:/Foto/01\"
+        then: select_next
+";
+        let config = Config::from_yaml(yaml).unwrap();
+        let rendered = render_full(&config).unwrap();
+        assert_eq!(Config::from_yaml(&rendered).unwrap(), config);
+    }
+
+    #[test]
+    fn render_full_config_awal_aman_valid() {
+        let rendered = render_full(&Config::default_safe()).unwrap();
+        assert_eq!(
+            Config::from_yaml(&rendered).unwrap(),
+            Config::default_safe()
+        );
     }
 }
