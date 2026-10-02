@@ -782,6 +782,8 @@ dependencies = [
  "directories",
  "keyflow-core",
  "keyflow-platform",
+ "tempfile",
+ "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
  "tray-icon",

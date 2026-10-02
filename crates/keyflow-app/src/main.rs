@@ -1,5 +1,6 @@
 //! Titik masuk aplikasi KeyFlow (T2.1–T2.8).
 
+pub mod settings_ui;
 pub mod worker;
 
 #[cfg(target_os = "windows")]

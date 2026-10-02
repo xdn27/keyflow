@@ -22,6 +22,10 @@ anyhow = { workspace = true }
 crossbeam-channel = { workspace = true }
 directories = { workspace = true }
 ctrlc = { workspace = true }
+thiserror = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = { version = "0.26" }
+
+[dev-dependencies]
+tempfile = { workspace = true }
