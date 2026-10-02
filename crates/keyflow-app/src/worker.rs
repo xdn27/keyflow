@@ -91,11 +91,24 @@ fn handle_file_rule<C: FileManagerContext>(
     undo_manager: &mut UndoManager,
     on_notify: &(dyn Fn(&str, &str) + Send + Sync),
 ) {
-    // Kueri seleksi segar langsung dari Explorer (menghindari cache staleness)
+    // 0. Pertahanan mendalam: verifikasi ulang bahwa file manager (Explorer / Finder)
+    // masih merupakan jendela terdepan sebelum mengeksekusi aksi file.
+    if let Ok(win) = context.focused_window() {
+        let proc = win.process_name.to_lowercase();
+        if !proc.is_empty() && !proc.contains("finder") && !proc.contains("explorer") {
+            tracing::info!(
+                proc,
+                "File manager tidak lagi aktif saat worker akan mengeksekusi rule; dibatalkan demi keamanan data."
+            );
+            return;
+        }
+    }
+
+    // Kueri seleksi segar langsung dari File Manager (menghindari cache staleness)
     let items = match context.selected_items() {
         Ok(it) if !it.is_empty() => it,
         _ => {
-            tracing::info!("Tidak ada item yang dipilih saat worker memeriksa Explorer");
+            tracing::info!("Tidak ada item yang dipilih saat worker memeriksa File Manager");
             return;
         }
     };

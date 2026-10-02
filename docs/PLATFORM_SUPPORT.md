@@ -8,7 +8,7 @@
 | Seleksi | COM / clipboard | AppleScript | Clipboard | Tidak |
 | `select_next` | Best-effort | Best-effort | Best-effort | Tidak |
 
-Status per milestone: Windows (M0-M2), macOS (M3), Linux X11 (M4). Matriks di atas adalah **target**, bukan jaminan, sampai diuji di tiap OS.
+Status per milestone: Windows (Selesai M0-M2), macOS (Selesai M3: CGEventTap, Finder AppleScript, verifikasi izin), Linux X11 (M4). Matriks di atas mencerminkan fitur yang telah diimplementasikan di codebase.
 
 ## Wayland
 

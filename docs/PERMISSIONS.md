@@ -10,16 +10,10 @@ KeyFlow memantau keyboard secara global, sehingga OS meminta izin tertentu. KeyF
 
 ## macOS
 
-Butuh dua izin di **System Settings -> Privacy & Security**:
+Butuh dua izin utama di **System Settings -> Privacy & Security**:
 
-1. **Accessibility**
-2. **Input Monitoring**
+1. **Accessibility**: KeyFlow memeriksa izin ini saat startup via `AXIsProcessTrusted()`. Jika belum aktif, KeyFlow memanggil `AXIsProcessTrustedWithOptions` untuk memicu dialog prompt izin macOS secara otomatis.
+2. **Input Monitoring**: Dibutuhkan untuk menerima dan memproses event keyboard tingkat rendah via `CGEventTap`.
+3. **Automation (Finder)**: Saat pertama kali berinteraksi dengan Finder lewat AppleScript (`osascript`), macOS akan menampilkan dialog *"KeyFlow ingin mengontrol Finder"*. Klik **OK/Allow** agar folder aktif dan item seleksi dapat terbaca.
 
-KeyFlow mendeteksi izin yang belum diberikan dan menampilkan petunjuk. Setelah memberi izin, KeyFlow mungkin perlu dijalankan ulang. Kontrol Finder lewat AppleScript dapat memicu dialog **Automation** ("KeyFlow ingin mengontrol Finder"); izinkan agar folder aktif dan seleksi terbaca.
-
-## Linux
-
-- X11: tidak butuh izin khusus.
-- Wayland: lihat `PLATFORM_SUPPORT.md`; global key grab tidak tersedia secara standar.
-
-> TODO(M3/M5): sesuaikan teks dengan perilaku sebenarnya setelah diuji di tiap OS.
+Jika izin belum diberikan, KeyFlow mengembalikan pesan kesalahan yang jelas dan menolak berjalan (fail-safe) tanpa menelan tombol apa pun.

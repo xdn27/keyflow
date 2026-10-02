@@ -62,10 +62,10 @@ Dependensi kandidat: `windows`, `tray-icon`, `notify-rust`, `tracing-subscriber`
 
 ## M3 - macOS
 
-- [ ] **T3.1** `CGEventTap` + penanganan `tapDisabledByTimeout`.
-- [ ] **T3.2** Deteksi izin Accessibility/Input Monitoring, pesan arahan ke System Settings.
-- [ ] **T3.3** Window fokus (`com.apple.finder`), folder aktif + seleksi via `osascript` dengan cache dan pembatasan frekuensi.
-- [ ] **T3.4** Uji manual macOS; perbarui `PERMISSIONS.md`, `PLATFORM_SUPPORT.md`.
+- [x] **T3.1** `CGEventTap` + penanganan `tapDisabledByTimeout`.
+- [x] **T3.2** Deteksi izin Accessibility/Input Monitoring, pesan arahan ke System Settings.
+- [x] **T3.3** Window fokus (`com.apple.finder`), folder aktif + seleksi via `osascript` dengan cache dan pembatasan frekuensi.
+- [x] **T3.4** Uji manual macOS; perbarui `PERMISSIONS.md`, `PLATFORM_SUPPORT.md`.
 
 ## M4 - Linux (X11)
 

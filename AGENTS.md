@@ -6,7 +6,7 @@ Aplikasi desktop Rust (system tray) yang menjalankan **shortcut keyboard sadar k
 
 ## Status
  
-Milestone M0 (Spike Windows), M1 (Inti `keyflow-core`, parser config, matcher konteks, aksi file aman, undo stack persisten crash-proof, hot-reload, mock platform, tes integrasi end-to-end, dan audit keamanan data), serta M2 (Aplikasi Windows lengkap: low-level keyboard hook fail-open, COM STA shell, context cache sub-10µs, worker thread asinkron dengan verifikasi seleksi segar, pencegahan loop SendInput KEYFLOW_EXTRA_INFO, system tray, toast notification, dan hot-reload otomatis) telah selesai 100% dan lolos audit kode serta audit keamanan data. Menunggu persetujuan pengguna sebelum lanjut ke M3 (macOS). Platform target: Windows (Selesai), lalu macOS, lalu Linux (X11).
+Milestone M0 (Spike Windows), M1 (Inti `keyflow-core`), M2 (Aplikasi Windows lengkap), dan M3 (Dukungan macOS: CGEventTap fail-open, deteksi & panduan izin Accessibility/Input Monitoring, Finder AppleScript context snapshot berkinerja tinggi, worker thread aman berlapis, pencegahan event sintetis KEYFLOW_MACOS_USER_DATA, dan graceful shutdown) telah selesai 100% serta lolos pengujian dan audit ganda (Code Reviewer & Data Safety Auditor). Menunggu persetujuan pengguna sebelum lanjut ke M4 (Linux X11). Platform target: Windows (Selesai), macOS (Selesai), lalu Linux (X11).
 
 ## Perintah
 

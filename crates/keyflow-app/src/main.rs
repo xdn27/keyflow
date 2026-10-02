@@ -7,6 +7,9 @@ pub mod app_windows;
 #[cfg(target_os = "windows")]
 pub mod tray;
 
+#[cfg(target_os = "macos")]
+pub mod app_macos;
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -20,16 +23,19 @@ fn main() -> anyhow::Result<()> {
         app_windows::run()
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        app_macos::run()
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         tracing::info!("KeyFlow v{} dimulai", env!("CARGO_PKG_VERSION"));
         tracing::info!(
-            "Target platform saat ini ({}) belum didukung secara penuh untuk GUI/tray.",
+            "Target platform saat ini ({}) belum didukung secara penuh untuk GUI/daemon.",
             std::env::consts::OS
         );
-        tracing::info!(
-            "Dukungan macOS dan Linux sedang dalam roadmap pengembangan berikutnya (M3/M4)."
-        );
+        tracing::info!("Dukungan Linux (X11) sedang dalam roadmap pengembangan berikutnya (M4).");
         Ok(())
     }
 }

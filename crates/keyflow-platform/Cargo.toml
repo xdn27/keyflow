@@ -27,6 +27,10 @@ features = [
     "Win32_System_ProcessStatus",
 ]
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.24"
+core-foundation = "0.10"
+
 [[example]]
 name = "m0_windows_spike"
 path = "../../examples/m0_windows_spike.rs"

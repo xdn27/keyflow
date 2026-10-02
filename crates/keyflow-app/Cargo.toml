@@ -21,6 +21,7 @@ tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 crossbeam-channel = { workspace = true }
 directories = { workspace = true }
+ctrlc = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = { version = "0.26" }
