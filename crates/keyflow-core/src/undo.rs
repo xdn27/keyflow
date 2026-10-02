@@ -423,7 +423,6 @@ fn undo_single_record(record: &UndoRecord) -> UndoItemResult {
             }
         }
         ActionType::Copy => {
-            // Verifikasi integritas: jika file salinan telah diedit pengguna setelah disalin, batalkan undo demi keamanan data!
             if current_path.is_file() {
                 if let Some(expected_len) = record.file_len {
                     if let Ok(meta) = std::fs::metadata(current_path) {
@@ -439,6 +438,20 @@ fn undo_single_record(record: &UndoRecord) -> UndoItemResult {
                             };
                         }
                     }
+                }
+            } else if current_path.is_dir() {
+                // Verifikasi integritas direktori: jika folder salinan berisi file baru atau ada file yang diubah,
+                // batalkan undo demi mencegah hilangnya pekerjaan baru pengguna!
+                if is_dir_modified_or_has_new_files(current_path, target_restore) {
+                    return UndoItemResult {
+                        current_path: current_path.clone(),
+                        restored_path: target_restore.clone(),
+                        success: false,
+                        error_message: Some(format!(
+                            "Undo dibatalkan demi keamanan data: direktori salinan '{}' telah dimodifikasi atau berisi berkas baru",
+                            current_path.display()
+                        )),
+                    };
                 }
             }
 
@@ -475,6 +488,52 @@ fn current_epoch_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+/// Memeriksa apakah direktori salinan telah dimodifikasi atau berisi berkas/folder baru
+/// yang tidak ada di direktori sumber asli.
+fn is_dir_modified_or_has_new_files(copied_dir: &Path, original_source: &Path) -> bool {
+    if !original_source.is_dir() {
+        return true;
+    }
+
+    let entries = match std::fs::read_dir(copied_dir) {
+        Ok(e) => e,
+        Err(_) => return true,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let rel_path = match path.strip_prefix(copied_dir) {
+            Ok(p) => p,
+            Err(_) => return true,
+        };
+        let orig_counterpart = original_source.join(rel_path);
+
+        if !orig_counterpart.exists() {
+            // Berkas atau subdirektori baru ditemukan di dalam salinan
+            return true;
+        }
+
+        if path.is_file() {
+            let copied_meta = match path.metadata() {
+                Ok(m) => m,
+                Err(_) => return true,
+            };
+            let orig_meta = match orig_counterpart.metadata() {
+                Ok(m) => m,
+                Err(_) => return true,
+            };
+            if copied_meta.len() != orig_meta.len() {
+                // Ukuran berkas di dalam salinan telah berubah
+                return true;
+            }
+        } else if path.is_dir() && is_dir_modified_or_has_new_files(&path, &orig_counterpart) {
+            return true;
+        }
+    }
+
+    false
 }
 
 #[cfg(test)]
@@ -624,5 +683,50 @@ mod tests {
         assert_eq!(manager.undo_latest().unwrap().transaction_id, "tx-2");
         assert_eq!(manager.undo_latest().unwrap().transaction_id, "tx-1");
         assert!(manager.is_empty());
+    }
+
+    #[test]
+    fn test_undo_copy_dir_fails_if_new_files_added() {
+        let temp = tempfile::tempdir().unwrap();
+        let src_dir = temp.path().join("proyek_asli");
+        let copied_dir = temp.path().join("proyek_salinan");
+
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::create_dir_all(&copied_dir).unwrap();
+
+        let base_file = src_dir.join("kode.rs");
+        File::create(&base_file)
+            .unwrap()
+            .write_all(b"fn main() {}")
+            .unwrap();
+        let copy_base_file = copied_dir.join("kode.rs");
+        File::create(&copy_base_file)
+            .unwrap()
+            .write_all(b"fn main() {}")
+            .unwrap();
+
+        // Tambahkan file baru di dalam direktori salinan (skenario pengguna bekerja di folder copy)
+        let new_user_file = copied_dir.join("catatan_penting.txt");
+        File::create(&new_user_file)
+            .unwrap()
+            .write_all(b"catatan")
+            .unwrap();
+
+        let mut manager = UndoManager::memory_only(10);
+        manager.push_transaction(UndoTransaction {
+            id: "tx-dir-copy".to_string(),
+            timestamp_epoch_ms: 1000,
+            records: vec![UndoRecord {
+                action: ActionType::Copy,
+                original_source: src_dir,
+                actual_destination: copied_dir.clone(),
+                file_len: None,
+            }],
+        });
+
+        let report = manager.undo_latest().unwrap();
+        assert_eq!(report.failed, 1);
+        assert!(copied_dir.exists());
+        assert!(new_user_file.exists()); // File baru pengguna dijamin TIDAK terhapus!
     }
 }

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   pull_request:
 
 env:
@@ -27,6 +27,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libx11-dev libxtst-dev libxext-dev
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+      - name: Lint with Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run Tests
+        run: cargo test --workspace --verbose
+      - name: Build Workspace
+        run: cargo build --workspace --verbose

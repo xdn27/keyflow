@@ -1,37 +1,90 @@
-# Contoh konfigurasi KeyFlow. Salin ke direktori config OS sebagai `keyflow/config.yaml`.
-# Skema lengkap: docs/agents/config.md
+# ==============================================================================
+# Contoh Konfigurasi KeyFlow (keyflow/config.yaml)
+# ==============================================================================
+# Dokumentasi skema lengkap dapat dibaca di: docs/agents/config.md
+#
+# Lokasi penempatan berkas ini per sistem operasi:
+# - Windows : %APPDATA%\keyflow\config.yaml
+# - macOS   : ~/Library/Application Support/keyflow/config.yaml
+# - Linux   : ~/.config/keyflow/config.yaml
+# ==============================================================================
+
 version: 1
 
+# Pengaturan Global
 settings:
-  dry_run: false            # true = hanya tampilkan apa yang akan terjadi
+  # Mode simulasi (true = hanya log dan notifikasi, berkas fisik tidak disentuh)
+  dry_run: false
+
+  # Tampilkan notifikasi desktop setelah aksi selesai
   notifications: true
-  on_conflict: rename       # rename | skip | overwrite | ask  (default aman: rename)
+
+  # Kebijakan penanganan nama berkas yang sama di tujuan:
+  # - rename    : Otomatis tambahkan penomoran, mis. "foto (1).jpg" (DEFAULT AMAN)
+  # - skip      : Lewati berkas tersebut tanpa melakukan apa pun
+  # - overwrite : Timpa berkas lama di tujuan (HATI-HATI!)
+  # - ask       : Minta konfirmasi pengguna
+  on_conflict: rename
+
+  # Buat direktori tujuan secara otomatis jika belum ada di disk
   create_missing_dirs: true
+
+  # Batas maksimum riwayat transaksi undo yang disimpan dalam memori & log
   undo_history_limit: 200
 
+# Profil Shortcut Berdasarkan Konteks
 profiles:
-  - name: Sorting Foto
+  # ----------------------------------------------------------------------------
+  # Profil 1: Menyortir Foto Kamera (Contoh path Windows)
+  # ----------------------------------------------------------------------------
+  - name: "Sorting Foto Mentah"
     enabled: true
-    # dry_run: true         # opsional: override per profil
+    # dry_run: true  # Opsional: aktifkan dry_run khusus profil ini jika diperlukan
     context:
-      app: file_manager          # file_manager | nama proses spesifik
-      path: "D:/Foto/Mentah/**"  # glob, opsional
-      selection: image           # any | image | video | audio | document | ext:[jpg,png]
+      app: file_manager          # Hanya aktif di file manager resmi OS
+      path: "D:/Foto/Mentah/**"  # Pola glob folder yang dipantau
+      selection: image           # Hanya aktif jika file yang dipilih adalah gambar
+                                 # Pilihan: any | image | video | audio | document | ext:[jpg,png,cr3]
     rules:
       - key: "1"
         action: move
         to: "D:/Foto/01_Dipakai"
-        then: select_next
+        then: select_next         # Otomatis pindah seleksi ke berkas berikutnya
+
       - key: "2"
         action: move
         to: "D:/Foto/02_Cadangan"
         then: select_next
+
       - key: "3"
         action: copy
-        to: "D:/Foto/03_Posting"
+        to: "D:/Foto/03_Kurasi"
+
       - key: "4"
-        action: move
-        to: "D:/Foto/04_Reject"
+        action: trash             # Pindahkan ke Recycle Bin / Trash OS (Bukan hapus permanen)
         then: select_next
+
+      - key: "Ctrl+Shift+Z"
+        action: undo              # Batalkan aksi file terakhir
+
+  # ----------------------------------------------------------------------------
+  # Profil 2: Manajemen Dokumen Unduhan (Contoh path Unix / macOS / Linux)
+  # ----------------------------------------------------------------------------
+  - name: "Organisasi Dokumen Downloads"
+    enabled: false               # Contoh profil yang dinonaktifkan
+    context:
+      app: file_manager
+      path: "~/Downloads/**"
+      selection: document        # pdf, docx, xlsx, pptx, txt, dll.
+    rules:
+      - key: "d"
+        action: move
+        to: "~/Documents/Arsip"
+        then: select_next
+
+      - key: "t"
+        action: trash
+        then: select_next
+
       - key: "Ctrl+Shift+Z"
         action: undo

@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: keyflow.exe
+            archive_ext: zip
+          - os: macos-13
+            target: x86_64-apple-darwin
+            binary: keyflow
+            archive_ext: tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: keyflow
+            archive_ext: tar.gz
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: keyflow
+            archive_ext: tar.gz
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libxtst-dev libxext-dev
+
+      - name: Build release binary
+        run: cargo build --release --bin keyflow --target ${{ matrix.target }}
+
+      - name: Prepare package directory
+        shell: bash
+        run: |
+          PACKAGE_DIR="keyflow-${{ matrix.target }}"
+          mkdir -p "$PACKAGE_DIR"
+          
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/keyflow.exe" "$PACKAGE_DIR/"
+          else
+            cp "target/${{ matrix.target }}/release/keyflow" "$PACKAGE_DIR/"
+          fi
+          
+          cp README.md "$PACKAGE_DIR/"
+          mkdir -p "$PACKAGE_DIR/examples"
+          cp examples/config.yaml "$PACKAGE_DIR/examples/"
+
+      - name: Archive binary (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ARCHIVE_NAME="keyflow-${{ matrix.target }}.zip"
+          7z a "$ARCHIVE_NAME" "./keyflow-${{ matrix.target }}/*"
+          certutil -hashfile "$ARCHIVE_NAME" SHA256 | findstr -v "hash" | findstr -v "CertUtil" | tr -d ' \r\n' > "${ARCHIVE_NAME}.sha256"
+          echo "SHA256 for $ARCHIVE_NAME: $(cat "${ARCHIVE_NAME}.sha256")"
+
+      - name: Archive binary (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          ARCHIVE_NAME="keyflow-${{ matrix.target }}.tar.gz"
+          tar -czf "$ARCHIVE_NAME" -C "keyflow-${{ matrix.target }}" .
+          sha256sum "$ARCHIVE_NAME" | awk '{print $1}' > "${ARCHIVE_NAME}.sha256"
+          echo "SHA256 for $ARCHIVE_NAME: $(cat "${ARCHIVE_NAME}.sha256")"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyflow-${{ matrix.target }}
+          path: |
+            keyflow-${{ matrix.target }}.*
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten release artifacts
+        run: |
+          mkdir -p release-files
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release-files/ \;
+          ls -la release-files/
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-files/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true

@@ -202,6 +202,13 @@ impl KeyboardHook for LinuxX11HookManager {
                     };
 
                     if let x11rb::protocol::Event::KeyPress(ev) = event {
+                        // 1. Abaikan event buatan sendiri (sintetis dari select_next atau Ctrl+C)
+                        if crate::linux::IS_SYNTHETIC_LINUX_EVENT.load(Ordering::SeqCst) {
+                            let _ = conn.allow_events(Allow::REPLAY_KEYBOARD, ev.time);
+                            let _ = conn.flush();
+                            continue;
+                        }
+
                         let result = std::panic::catch_unwind(|| {
                             let Some(key_name) = x11_keycode_to_name(ev.detail) else {
                                 // Tombol tidak dikenal: fail-open replay

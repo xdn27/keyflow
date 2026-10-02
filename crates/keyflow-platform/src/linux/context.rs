@@ -4,6 +4,7 @@
 //! serta pengambilan seleksi file via clipboard `text/uri-list` standar FreeDesktop.
 
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -420,7 +421,10 @@ impl FileManagerContext for LinuxFileManagerContext {
             return Ok(Vec::new());
         }
 
-        // 1. Simulasikan Ctrl+C via XTest fake_input untuk mengisi clipboard dari file manager
+        // 1. Simulasikan Ctrl+C via XTest fake_input untuk mengisi clipboard dari file manager.
+        // Tandai event sintetis agar hook X11 tidak mencegat atau menelannya.
+        crate::linux::IS_SYNTHETIC_LINUX_EVENT.store(true, Ordering::SeqCst);
+
         conn.xtest_fake_input(
             x11rb::protocol::xproto::KEY_PRESS_EVENT,
             X11_KEYCODE_CTRL_L,
@@ -470,15 +474,25 @@ impl FileManagerContext for LinuxFileManagerContext {
 
         // Jeda waktu singkat untuk memastikan file manager memperbarui selection X11
         thread::sleep(Duration::from_millis(80));
+        crate::linux::IS_SYNTHETIC_LINUX_EVENT.store(false, Ordering::SeqCst);
 
         // 2. Baca data selection URI list
         let mut items = self.read_clipboard_uri_list(&conn, root)?;
 
-        // Data Safety Guard: Validasi bahwa item yang dibaca berasal dari folder aktif.
-        // Jika current_folder diketahui, pastikan setiap file merupakan turunan langsung dari folder tersebut.
-        // File dari clipboard lama yang berasal dari direktori lain otomatis disaring keluar demi keamanan data.
-        if let Ok(Some(ref cur_dir)) = self.current_folder() {
-            items.retain(|item| item.parent() == Some(cur_dir.as_path()));
+        // Data Safety Guard Mutlak:
+        // Validasi bahwa item yang dibaca berasal dari folder aktif saat ini.
+        // Jika current_folder TIDAK dapat dipastikan (None/Err), KOSONGKAN seleksi demi mencegah
+        // eksekusi data clipboard lama dari folder lain (stale clipboard hazard).
+        match self.current_folder() {
+            Ok(Some(ref cur_dir)) => {
+                items.retain(|item| item.parent() == Some(cur_dir.as_path()));
+            }
+            _ => {
+                tracing::warn!(
+                    "Folder aktif tidak dapat dipastikan; mengosongkan seleksi clipboard demi keselamatan data"
+                );
+                return Ok(Vec::new());
+            }
         }
 
         Ok(items)
@@ -486,6 +500,9 @@ impl FileManagerContext for LinuxFileManagerContext {
 
     fn select_next(&self) -> Result<()> {
         let (conn, _) = self.connect_x11()?;
+
+        // Tandai event sintetis agar hook X11 tidak menganggap DOWN ini sebagai input pengguna
+        crate::linux::IS_SYNTHETIC_LINUX_EVENT.store(true, Ordering::SeqCst);
 
         conn.xtest_fake_input(
             x11rb::protocol::xproto::KEY_PRESS_EVENT,
@@ -511,6 +528,9 @@ impl FileManagerContext for LinuxFileManagerContext {
 
         conn.flush()
             .map_err(|e| PlatformError::Os(format!("Gagal flush fake_input: {e}")))?;
+
+        thread::sleep(Duration::from_millis(25));
+        crate::linux::IS_SYNTHETIC_LINUX_EVENT.store(false, Ordering::SeqCst);
 
         Ok(())
     }

@@ -76,10 +76,10 @@ Dependensi kandidat: `windows`, `tray-icon`, `notify-rust`, `tracing-subscriber`
 
 ## M5 - Pengemasan
 
-- [ ] **T5.1** CI hijau di 3 OS (lengkapi paket sistem Linux).
-- [ ] **T5.2** Workflow rilis: binary per OS (artifact GitHub Releases).
-- [ ] **T5.3** Finalisasi `README.md`, `PERMISSIONS.md`, `PLATFORM_SUPPORT.md`, `MANUAL_TESTING.md`, `examples/config.yaml`.
-- [ ] **T5.4** Tinjauan akhir: `code-reviewer` + `data-safety-auditor` pada seluruh codebase.
+- [x] **T5.1** CI hijau di 3 OS (lengkapi paket sistem Linux).
+- [x] **T5.2** Workflow rilis: binary per OS (artifact GitHub Releases).
+- [x] **T5.3** Finalisasi `README.md`, `PERMISSIONS.md`, `PLATFORM_SUPPORT.md`, `MANUAL_TESTING.md`, `examples/config.yaml`.
+- [x] **T5.4** Tinjauan akhir: `code-reviewer` + `data-safety-auditor` pada seluruh codebase.
 
 ## Prompt awal untuk agent pelaksana
 

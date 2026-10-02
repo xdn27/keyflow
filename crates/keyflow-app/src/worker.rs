@@ -5,7 +5,9 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use crossbeam_channel::Receiver;
-use keyflow_core::actions::{execute_file_action, ActionSummary, ExecutionOptions};
+use keyflow_core::actions::{
+    apply_rename_template, execute_file_action, ActionSummary, ExecutionOptions,
+};
 use keyflow_core::config::{ActionType, ThenAction};
 use keyflow_core::matcher::MatchedRule;
 use keyflow_core::undo::{UndoManager, UndoRecord, UndoTransaction};
@@ -135,15 +137,28 @@ fn handle_file_rule<C: FileManagerContext>(
     let template = rule.template.as_deref();
 
     // 1. Log INTENT ke log persisten sebelum eksekusi dimulai (wajib lolos demi safety)
-    for item in &items {
-        let dest_hint = target_dir.map(|d| d.join(item.file_name().unwrap_or_default()));
-        if let Err(e) = undo_manager.log_intent(&tx_id, &rule.action, item, dest_hint.as_deref()) {
-            tracing::error!("Gagal menulis intent log: {e}");
-            on_notify(
-                "KeyFlow Galat Keamanan",
-                "Gagal mencatat log niat; operasi dibatalkan demi integritas data",
-            );
-            return;
+    // Sesuai Aturan Safety #23: mode dry_run tidak boleh menulis apa pun ke disk selain log tracing.
+    if !rule.dry_run {
+        for item in &items {
+            let dest_hint = if let Some(d) = target_dir {
+                Some(d.join(item.file_name().unwrap_or_default()))
+            } else if let Some(tmpl) = template {
+                let new_name = apply_rename_template(item, tmpl);
+                item.parent().map(|p| p.join(new_name))
+            } else {
+                None
+            };
+
+            if let Err(e) =
+                undo_manager.log_intent(&tx_id, &rule.action, item, dest_hint.as_deref())
+            {
+                tracing::error!("Gagal menulis intent log: {e}");
+                on_notify(
+                    "KeyFlow Galat Keamanan",
+                    "Gagal mencatat log niat; operasi dibatalkan demi integritas data",
+                );
+                return;
+            }
         }
     }
 
@@ -161,14 +176,16 @@ fn handle_file_rule<C: FileManagerContext>(
     let mut undo_records = Vec::new();
 
     for res in &summary.results {
-        let _ = undo_manager.log_completion(
-            &tx_id,
-            &rule.action,
-            &res.source,
-            res.destination.as_deref(),
-            res.success,
-            res.error_message.clone(),
-        );
+        if !rule.dry_run {
+            let _ = undo_manager.log_completion(
+                &tx_id,
+                &rule.action,
+                &res.source,
+                res.destination.as_deref(),
+                res.success,
+                res.error_message.clone(),
+            );
+        }
 
         if res.success && !res.is_noop && !res.is_skipped && !res.is_dry_run {
             if let Some(ref dest) = res.destination {
