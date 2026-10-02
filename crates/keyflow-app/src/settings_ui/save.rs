@@ -65,6 +65,8 @@ pub enum SaveError {
     ChangedOnDisk,
     #[error("Config tidak valid, tidak ada yang ditulis: {0}")]
     Invalid(String),
+    #[error("config.yaml bersifat hanya-baca; ubah izinnya dulu bila ingin menyimpan dari GUI.")]
+    ReadOnly,
     #[error("Gagal menulis config: {0}")]
     Io(#[from] std::io::Error),
     #[error("Gagal menyiapkan isi config: {0}")]
@@ -79,13 +81,16 @@ pub fn save(
     new: &Settings,
     mode: SaveMode,
 ) -> Result<SaveOutcome, SaveError> {
-    let on_disk = match fs::read_to_string(path) {
-        Ok(text) => Some(text),
-        Err(e) if e.kind() == ErrorKind::NotFound => None,
-        Err(e) => return Err(e.into()),
-    };
+    // Bila config.yaml adalah symlink (mis. dotfiles), tulis ke targetnya agar link tetap utuh.
+    let target = resolve_target(path);
+    let path = target.as_path();
+
+    let on_disk = read_optional(path)?;
     if on_disk.as_deref() != loaded_text {
         return Err(SaveError::ChangedOnDisk);
+    }
+    if on_disk.is_some() && fs::metadata(path)?.permissions().readonly() {
+        return Err(SaveError::ReadOnly);
     }
 
     let (new_text, needs_backup) = match &on_disk {
@@ -116,34 +121,93 @@ pub fn save(
 
     Config::from_yaml(&new_text).map_err(|e| SaveError::Invalid(e.to_string()))?;
 
-    if needs_backup {
-        fs::copy(path, backup_path(path))?;
+    if let (true, Some(old_text)) = (needs_backup, &on_disk) {
+        create_backup(path, old_text)?;
     }
-    atomic_write(path, &new_text)?;
+    atomic_write(path, &new_text, on_disk.as_deref())?;
     Ok(SaveOutcome::Saved)
 }
 
-/// `config.yaml` -> `config.yaml.bak` di folder yang sama.
-fn backup_path(path: &Path) -> PathBuf {
-    let mut name = path.file_name().unwrap_or_default().to_os_string();
-    name.push(".bak");
-    path.with_file_name(name)
+/// Mengikuti symlink ke berkas sebenarnya; bila tidak bisa (mis. belum ada), pakai path apa adanya.
+fn resolve_target(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Membaca teks berkas; `None` bila belum ada.
+fn read_optional(path: &Path) -> std::io::Result<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+/// Menulis cadangan `config.yaml.bak`, atau `.bak.1`, `.bak.2`, ... bila namanya sudah
+/// dipakai. Tidak pernah menimpa berkas yang ada dan tidak mengikuti symlink (`create_new`).
+fn create_backup(path: &Path, old_text: &str) -> std::io::Result<PathBuf> {
+    let base = path.file_name().unwrap_or_default().to_os_string();
+    for n in 0..1000u32 {
+        let mut name = base.clone();
+        name.push(if n == 0 {
+            ".bak".to_string()
+        } else {
+            format!(".bak.{n}")
+        });
+        let candidate = path.with_file_name(name);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                file.write_all(old_text.as_bytes())?;
+                file.sync_all()?;
+                return Ok(candidate);
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(
+        ErrorKind::AlreadyExists,
+        "terlalu banyak berkas cadangan config.yaml.bak.*",
+    ))
 }
 
 /// Menulis lewat berkas sementara di folder yang sama lalu `rename`, sehingga
 /// pembaca (termasuk hot-reload) tidak pernah melihat berkas setengah tertulis.
-fn atomic_write(path: &Path, content: &str) -> std::io::Result<()> {
+/// Isi berkas diperiksa ulang tepat sebelum `rename`; celah yang tersisa hanya selebar
+/// satu panggilan sistem (tanpa lock antarproses).
+fn atomic_write(path: &Path, content: &str, expected: Option<&str>) -> Result<(), SaveError> {
+    atomic_write_with(path, content, expected, || {})
+}
+
+fn atomic_write_with(
+    path: &Path,
+    content: &str,
+    expected: Option<&str>,
+    before_rename: impl FnOnce(),
+) -> Result<(), SaveError> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(dir)?;
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(format!(".tmp-{}", std::process::id()));
     let tmp = path.with_file_name(name);
 
-    let result = (|| {
+    let result = (|| -> Result<(), SaveError> {
         let mut file = fs::File::create(&tmp)?;
         file.write_all(content.as_bytes())?;
+        if let Ok(meta) = fs::metadata(path) {
+            // Pertahankan izin asli (mis. 0600) pada berkas pengganti.
+            fs::set_permissions(&tmp, meta.permissions())?;
+        }
         file.sync_all()?;
-        fs::rename(&tmp, path)
+        before_rename();
+        if read_optional(path)?.as_deref() != expected {
+            return Err(SaveError::ChangedOnDisk);
+        }
+        fs::rename(&tmp, path)?;
+        Ok(())
     })();
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
@@ -368,5 +432,145 @@ profiles:
             matches!(reloaded, Ok(Ok(true))),
             "hot-reload tidak menerima config baru: {reloaded:?}"
         );
+    }
+
+    #[test]
+    fn cadangan_manual_pengguna_tidak_tertimpa() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.yaml");
+        let inline = "version: 1\nsettings: {dry_run: false}\n";
+        fs::write(&path, inline).unwrap();
+        fs::write(dir.path().join("config.yaml.bak"), "CADANGAN MANUAL").unwrap();
+        let (text, settings) = loaded(&path);
+        let new = Settings {
+            dry_run: true,
+            ..settings
+        };
+
+        save(&path, Some(&text), &new, SaveMode::AllowFullRewrite).unwrap();
+
+        assert_eq!(
+            fs::read_to_string(dir.path().join("config.yaml.bak")).unwrap(),
+            "CADANGAN MANUAL"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("config.yaml.bak.1")).unwrap(),
+            inline
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cadangan_tidak_mengikuti_symlink_bak() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.yaml");
+        let inline = "version: 1\nsettings: {dry_run: false}\n";
+        fs::write(&path, inline).unwrap();
+        let victim = dir.path().join("dokumen_penting.txt");
+        fs::write(&victim, "PENTING").unwrap();
+        std::os::unix::fs::symlink(&victim, dir.path().join("config.yaml.bak")).unwrap();
+        let (text, settings) = loaded(&path);
+        let new = Settings {
+            dry_run: true,
+            ..settings
+        };
+
+        save(&path, Some(&text), &new, SaveMode::AllowFullRewrite).unwrap();
+
+        assert_eq!(fs::read_to_string(&victim).unwrap(), "PENTING");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn config_berupa_symlink_tetap_symlink_dan_targetnya_diperbarui() {
+        let dir = tempfile::tempdir().unwrap();
+        let real_dir = dir.path().join("dotfiles");
+        fs::create_dir(&real_dir).unwrap();
+        let real = real_dir.join("keyflow.yaml");
+        fs::write(&real, SAMPLE).unwrap();
+        let link = dir.path().join("config.yaml");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let (text, settings) = loaded(&link);
+        let new = Settings {
+            dry_run: true,
+            ..settings
+        };
+
+        let outcome = save(&link, Some(&text), &new, SaveMode::PatchOnly).unwrap();
+
+        assert_eq!(outcome, SaveOutcome::Saved);
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert!(fs::read_to_string(&real)
+            .unwrap()
+            .contains("  dry_run: true  # simulasi\n"));
+    }
+
+    #[test]
+    fn edit_luar_tepat_sebelum_rename_tidak_tertimpa() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_sample(dir.path());
+
+        let result = atomic_write_with(&path, "version: 1\n", Some(SAMPLE), || {
+            fs::write(&path, "# edit luar\n").unwrap();
+        });
+
+        assert!(matches!(result, Err(SaveError::ChangedOnDisk)));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "# edit luar\n");
+        assert_eq!(files_in(dir.path()), vec!["config.yaml"]);
+    }
+
+    #[test]
+    fn berkas_yang_muncul_tepat_sebelum_rename_tidak_tertimpa() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.yaml");
+
+        let result = atomic_write_with(&path, "version: 1\n", None, || {
+            fs::write(&path, "# dibuat proses lain\n").unwrap();
+        });
+
+        assert!(matches!(result, Err(SaveError::ChangedOnDisk)));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "# dibuat proses lain\n");
+        assert_eq!(files_in(dir.path()), vec!["config.yaml"]);
+    }
+
+    #[test]
+    fn berkas_hanya_baca_ditolak_dan_tidak_berubah() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_sample(dir.path());
+        let (text, settings) = loaded(&path);
+        let mut perms = fs::metadata(&path).unwrap().permissions();
+        perms.set_readonly(true);
+        fs::set_permissions(&path, perms).unwrap();
+        let new = Settings {
+            dry_run: true,
+            ..settings
+        };
+
+        let result = save(&path, Some(&text), &new, SaveMode::PatchOnly);
+
+        assert!(matches!(result, Err(SaveError::ReadOnly)));
+        assert_eq!(fs::read_to_string(&path).unwrap(), SAMPLE);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn izin_berkas_asli_dipertahankan() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_sample(dir.path());
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let (text, settings) = loaded(&path);
+        let new = Settings {
+            dry_run: true,
+            ..settings
+        };
+
+        save(&path, Some(&text), &new, SaveMode::PatchOnly).unwrap();
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 }

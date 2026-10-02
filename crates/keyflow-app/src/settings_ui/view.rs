@@ -243,7 +243,8 @@ impl SettingsApp {
                     ui.label(format!(
                         "Config tidak dapat diubah tanpa mengubah formatnya ({reason}). \
                          Anda dapat menulis ulang seluruh berkas: komentar akan hilang, dan \
-                         cadangan config.yaml.bak dibuat lebih dulu."
+                         cadangan config.yaml.bak (atau .bak.1, .bak.2 bila nama itu sudah dipakai) \
+                         dibuat lebih dulu dan cadangan lama tidak ditimpa."
                     ));
                     ui.horizontal(|ui| {
                         if ui.button("Tulis ulang penuh").clicked() {

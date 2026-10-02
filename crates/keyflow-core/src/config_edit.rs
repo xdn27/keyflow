@@ -216,6 +216,10 @@ fn is_blank_or_comment(text: &str) -> bool {
 
 /// Mengurai `kunci: nilai  # komentar` dengan nilai skalar polos; selain itu `None`.
 fn parse_entry(text: &str) -> Option<Entry<'_>> {
+    // TAB bisa memisahkan nilai dari komentar; jangan menebak, serahkan ke pengguna.
+    if text.contains('\t') {
+        return None;
+    }
     let body = text.trim_start_matches(' ');
     let indent = text.len() - body.len();
     let colon = body.find(':')?;
@@ -405,6 +409,19 @@ profiles:
         assert!(matches!(
             patch_settings(yaml, &Settings::default()),
             PatchResult::Unpatchable(PatchReason::InvalidOriginal(_))
+        ));
+    }
+
+    #[test]
+    fn komentar_setelah_tab_tidak_hilang_diam_diam() {
+        let yaml = "version: 1\nsettings:\n  dry_run: false\t# komentar\n";
+        let new = Settings {
+            dry_run: true,
+            ..Settings::default()
+        };
+        assert!(matches!(
+            patch_settings(yaml, &new),
+            PatchResult::Unpatchable(PatchReason::UnsupportedLine { line: 3 })
         ));
     }
 

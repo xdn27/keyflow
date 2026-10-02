@@ -40,7 +40,7 @@ Tandai hasil pengujian per sistem operasi:
 | 22 | **Hot-reload dari GUI**: Dengan KeyFlow berjalan, simpan dari GUI; perubahan langsung berlaku (mis. `dry_run: true` membuat shortcut hanya notifikasi) tanpa restart. | [ ] | [ ] | [ ] |
 | 23 | **Konfirmasi `overwrite`**: Memilih `overwrite` memunculkan dialog peringatan; "Batal" mengembalikan pilihan sebelumnya. | [ ] | [ ] | [ ] |
 | 24 | **Config diubah di luar GUI**: Biarkan GUI terbuka, edit `config.yaml` di editor lain, lalu klik Simpan di GUI; muncul peringatan, isi editor tidak tertimpa. Config yang sedang rusak: GUI menampilkan error dan menolak menyimpan. | [ ] | [ ] | [ ] |
-| 20 | **Penghentian Paksa (Crash Resiliency)**: Matikan proses paksa (`kill -9` / End Task) saat aksi berlangsung; pastikan tidak ada file yang hilang dan intent log mencukupi untuk audit pemulihan. | [ ] | [ ] | [ ] |
+| 25 | **Penghentian Paksa (Crash Resiliency)**: Matikan proses paksa (`kill -9` / End Task) saat aksi berlangsung; pastikan tidak ada file yang hilang dan intent log mencukupi untuk audit pemulihan. | [ ] | [ ] | [ ] |
 
 ---
 
