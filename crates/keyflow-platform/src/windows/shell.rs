@@ -21,7 +21,9 @@ use ::windows::Win32::UI::Shell::{
     IFolderView2, IShellBrowser, IShellItem, IShellItemArray, IShellView, IShellWindows,
     ShellWindows, SIGDN_FILESYSPATH, SVGIO_SELECTION,
 };
-use ::windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowTextW, IsChild};
+use ::windows::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, GetWindowTextW, GetWindowThreadProcessId, IsChild,
+};
 
 use crate::PlatformError;
 
@@ -276,4 +278,132 @@ fn query_active_explorer_internal() -> Result<ExplorerShellContext, PlatformErro
     }
 
     Ok(matched_context.unwrap_or_default())
+}
+
+/// Implementasi FileManagerContext untuk Windows Explorer.
+pub struct WindowsFileManagerContext {
+    shell_client: std::sync::Arc<WindowsShellClient>,
+}
+
+impl WindowsFileManagerContext {
+    pub fn new() -> Result<Self, PlatformError> {
+        let shell_client = std::sync::Arc::new(WindowsShellClient::new()?);
+        Ok(Self { shell_client })
+    }
+
+    pub fn with_shell_client(shell_client: std::sync::Arc<WindowsShellClient>) -> Self {
+        Self { shell_client }
+    }
+
+    pub fn shell_client(&self) -> &std::sync::Arc<WindowsShellClient> {
+        &self.shell_client
+    }
+}
+
+impl crate::FileManagerContext for WindowsFileManagerContext {
+    fn focused_window(&self) -> Result<crate::WindowInfo, PlatformError> {
+        // SAFETY: GetForegroundWindow mengambil HWND jendela yang sedang aktif
+        let hwnd = unsafe { GetForegroundWindow() };
+        if hwnd.0.is_null() {
+            return Ok(crate::WindowInfo {
+                process_name: String::new(),
+                title: String::new(),
+            });
+        }
+
+        // Ambil nama executable proses
+        let mut pid = 0u32;
+        // SAFETY: GetWindowThreadProcessId membaca PID jendela
+        unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
+
+        let mut process_name = String::new();
+        if pid != 0 {
+            use ::windows::Win32::System::ProcessStatus::GetModuleBaseNameW;
+            use ::windows::Win32::System::Threading::{
+                OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+            };
+
+            // SAFETY: OpenProcess dengan hak akses terbatas
+            let process_handle =
+                unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) };
+            if let Ok(handle) = process_handle {
+                let mut name_buf = [0u16; 256];
+                // SAFETY: GetModuleBaseNameW membaca nama modul
+                let len = unsafe { GetModuleBaseNameW(handle, None, &mut name_buf) };
+                // SAFETY: CloseHandle menutup handle proses yang telah selesai diperiksa.
+                unsafe {
+                    let _ = ::windows::Win32::Foundation::CloseHandle(handle);
+                }
+                if len > 0 {
+                    process_name = String::from_utf16_lossy(&name_buf[..len as usize]);
+                }
+            }
+        }
+
+        // Ambil judul jendela
+        let mut title_buf = [0u16; 512];
+        // SAFETY: GetWindowTextW membaca judul teks jendela
+        let title_len = unsafe { GetWindowTextW(hwnd, &mut title_buf) };
+        let title = if title_len > 0 {
+            String::from_utf16_lossy(&title_buf[..title_len as usize])
+        } else {
+            String::new()
+        };
+
+        Ok(crate::WindowInfo {
+            process_name,
+            title,
+        })
+    }
+
+    fn current_folder(&self) -> Result<Option<PathBuf>, PlatformError> {
+        let ctx = self.shell_client.get_active_context()?;
+        Ok(ctx.active_folder)
+    }
+
+    fn selected_items(&self) -> Result<Vec<PathBuf>, PlatformError> {
+        let ctx = self.shell_client.get_active_context()?;
+        Ok(ctx.selected_items)
+    }
+
+    fn select_next(&self) -> Result<(), PlatformError> {
+        use ::windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VK_DOWN,
+        };
+
+        let inputs = [
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_DOWN,
+                        wScan: 0,
+                        dwFlags: Default::default(), // keydown
+                        time: 0,
+                        dwExtraInfo: crate::windows::hook::KEYFLOW_EXTRA_INFO,
+                    },
+                },
+            },
+            INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT {
+                        wVk: VK_DOWN,
+                        wScan: 0,
+                        dwFlags: KEYEVENTF_KEYUP, // keyup
+                        time: 0,
+                        dwExtraInfo: crate::windows::hook::KEYFLOW_EXTRA_INFO,
+                    },
+                },
+            },
+        ];
+
+        // SAFETY: SendInput dipanggil dengan pointer ke array INPUT 2 elemen
+        let sent = unsafe { SendInput(&inputs, std::mem::size_of::<INPUT>() as i32) };
+        if sent != 2 {
+            return Err(PlatformError::Os("SendInput VK_DOWN gagal".to_string()));
+        }
+
+        Ok(())
+    }
 }

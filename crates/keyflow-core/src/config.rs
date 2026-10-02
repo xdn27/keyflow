@@ -474,9 +474,34 @@ impl Config {
     }
 }
 
+/// Menormalkan path secara leksikal (resolusi '.' dan '..' tanpa memerlukan file ada di disk).
+pub fn normalize_path_lexically(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut normalized = PathBuf::new();
+    for comp in path.components() {
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            c => {
+                normalized.push(c.as_os_str());
+            }
+        }
+    }
+    normalized
+}
+
 /// Memeriksa apakah path merupakan root drive atau path sistem berbahaya.
 pub fn is_dangerous_system_path(path: &Path) -> bool {
-    let s = path.to_string_lossy();
+    // 1. Coba kanonikalisasi jika path sudah ada di disk
+    let effective_path = if let Ok(canonical) = path.canonicalize() {
+        canonical
+    } else {
+        normalize_path_lexically(path)
+    };
+
+    let s = effective_path.to_string_lossy();
     let normalized = s.trim().replace('\\', "/");
     let trimmed = normalized.trim_end_matches('/');
 
@@ -485,12 +510,13 @@ pub fn is_dangerous_system_path(path: &Path) -> bool {
         return true;
     }
 
-    // Windows drive root: e.g. "C:" atau "D:"
-    if trimmed.len() == 2 && trimmed.ends_with(':') {
+    // Windows drive root: e.g. "C:" atau "D:" atau "\\?\C:"
+    let drive_trimmed = trimmed.strip_prefix("//?/").unwrap_or(trimmed);
+    if drive_trimmed.len() == 2 && drive_trimmed.ends_with(':') {
         return true;
     }
 
-    let upper = trimmed.to_uppercase();
+    let upper = drive_trimmed.to_uppercase();
 
     // Direktori sistem yang seluruh isinya dilarang
     let system_trees = [
@@ -563,6 +589,16 @@ impl ConfigManager {
             .read()
             .map(|guard| guard.clone())
             .unwrap_or_else(|_| Arc::new(Config::default_safe()))
+    }
+
+    /// Memuat ulang konfigurasi dari disk secara manual dan atomik.
+    pub fn reload(&self) -> Result<Arc<Config>, ConfigError> {
+        let new_cfg = Config::from_file(&self.config_path)?;
+        let new_arc = Arc::new(new_cfg);
+        if let Ok(mut guard) = self.current_config.write() {
+            *guard = new_arc.clone();
+        }
+        Ok(new_arc)
     }
 
     /// Memulai watcher hot-reload file dengan debounce.
@@ -759,11 +795,21 @@ profiles:
         assert!(is_dangerous_system_path(Path::new("C:/Program Files")));
         assert!(is_dangerous_system_path(Path::new("C:/Users")));
 
+        // Path dengan traversal yang mengarah ke path sistem berbahaya
+        assert!(is_dangerous_system_path(Path::new(
+            "C:/Users/User/../../Windows/System32"
+        )));
+        assert!(is_dangerous_system_path(Path::new("/tmp/../etc/passwd")));
+        assert!(is_dangerous_system_path(Path::new("D:/Folder/../../")));
+
         // Path aman
         assert!(!is_dangerous_system_path(Path::new("/home/user/Documents")));
         assert!(!is_dangerous_system_path(Path::new(
             "C:/Users/User/Downloads"
         )));
         assert!(!is_dangerous_system_path(Path::new("D:/Projects/Rust")));
+        assert!(!is_dangerous_system_path(Path::new(
+            "D:/Projects/sub/../Rust"
+        )));
     }
 }

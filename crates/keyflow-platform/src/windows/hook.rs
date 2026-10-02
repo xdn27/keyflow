@@ -20,10 +20,9 @@ use ::windows::Win32::System::Threading::{
     GetCurrentThreadId, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use ::windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, GetClassNameW, GetForegroundWindow, GetMessageW,
-    GetWindowThreadProcessId, PostThreadMessageW, SetWindowsHookExW, TranslateMessage,
-    UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_QUIT,
-    WM_SYSKEYDOWN,
+    CallNextHookEx, DispatchMessageW, GetClassNameW, GetMessageW, GetWindowThreadProcessId,
+    PostThreadMessageW, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx, HHOOK,
+    KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_KEYDOWN, WM_QUIT, WM_SYSKEYDOWN,
 };
 
 /// Statistik latensi callback hook (dalam mikrodetik).
@@ -49,6 +48,12 @@ impl HookLatencyStats {
 // State statis untuk callback hook Win32
 static HOOK_ACTIVE: AtomicBool = AtomicBool::new(false);
 static HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
+
+type HookHandlerFn = Box<dyn Fn(crate::KeyEvent) -> crate::HookDecision + Send + Sync>;
+static HOOK_CALLBACK: std::sync::RwLock<Option<HookHandlerFn>> = std::sync::RwLock::new(None);
+
+/// Penanda unik untuk input yang disuntikkan sendiri oleh KeyFlow (ASCII 'KEYF').
+pub const KEYFLOW_EXTRA_INFO: usize = 0x4B455946;
 
 // Metrik latensi thread-safe
 static LATENCY_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -159,6 +164,89 @@ pub fn get_latency_stats() -> HookLatencyStats {
     }
 }
 
+/// Memeriksa apakah tombol fisik modifier sedang ditekan secara real-time.
+fn is_async_key_down(vk: i32) -> bool {
+    use ::windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+    // SAFETY: GetAsyncKeyState aman dipanggil untuk memeriksa status tombol.
+    unsafe { (GetAsyncKeyState(vk) as u16 & 0x8000) != 0 }
+}
+
+/// Menerjemahkan Virtual-Key code ke nama tombol standar.
+fn vk_to_key_name(vk: u32) -> Option<&'static str> {
+    match vk {
+        0x30 => Some("0"),
+        0x31 => Some("1"),
+        0x32 => Some("2"),
+        0x33 => Some("3"),
+        0x34 => Some("4"),
+        0x35 => Some("5"),
+        0x36 => Some("6"),
+        0x37 => Some("7"),
+        0x38 => Some("8"),
+        0x39 => Some("9"),
+        0x41 => Some("A"),
+        0x42 => Some("B"),
+        0x43 => Some("C"),
+        0x44 => Some("D"),
+        0x45 => Some("E"),
+        0x46 => Some("F"),
+        0x47 => Some("G"),
+        0x48 => Some("H"),
+        0x49 => Some("I"),
+        0x4A => Some("J"),
+        0x4B => Some("K"),
+        0x4C => Some("L"),
+        0x4D => Some("M"),
+        0x4E => Some("N"),
+        0x4F => Some("O"),
+        0x50 => Some("P"),
+        0x51 => Some("Q"),
+        0x52 => Some("R"),
+        0x53 => Some("S"),
+        0x54 => Some("T"),
+        0x55 => Some("U"),
+        0x56 => Some("V"),
+        0x57 => Some("W"),
+        0x58 => Some("X"),
+        0x59 => Some("Y"),
+        0x5A => Some("Z"),
+        0x60 => Some("0"), // Numpad 0-9
+        0x61 => Some("1"),
+        0x62 => Some("2"),
+        0x63 => Some("3"),
+        0x64 => Some("4"),
+        0x65 => Some("5"),
+        0x66 => Some("6"),
+        0x67 => Some("7"),
+        0x68 => Some("8"),
+        0x69 => Some("9"),
+        0x0D => Some("ENTER"),
+        0x1B => Some("ESC"),
+        0x20 => Some("SPACE"),
+        0x08 => Some("BACKSPACE"),
+        0x09 => Some("TAB"),
+        0x2E => Some("DELETE"),
+        0x2D => Some("INSERT"),
+        0x25 => Some("LEFT"),
+        0x26 => Some("UP"),
+        0x27 => Some("RIGHT"),
+        0x28 => Some("DOWN"),
+        0x70 => Some("F1"),
+        0x71 => Some("F2"),
+        0x72 => Some("F3"),
+        0x73 => Some("F4"),
+        0x74 => Some("F5"),
+        0x75 => Some("F6"),
+        0x76 => Some("F7"),
+        0x77 => Some("F8"),
+        0x78 => Some("F9"),
+        0x79 => Some("F10"),
+        0x7A => Some("F11"),
+        0x7B => Some("F12"),
+        _ => None,
+    }
+}
+
 /// Callback low-level keyboard hook Win32 (`WH_KEYBOARD_LL`).
 ///
 /// PERINGATAN: Harus sangat cepat (sub-milidetik), sinkron, tanpa alokasi besar,
@@ -176,24 +264,75 @@ unsafe extern "system" fn low_level_keyboard_proc(
             return unsafe { CallNextHookEx(None, code, w_param, l_param) };
         }
 
-        let msg = w_param.0 as u32;
-        // Hanya cek saat tombol ditekan (down)
-        if msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN {
-            // SAFETY: l_param pada WH_KEYBOARD_LL menunjuk ke struktur KBDLLHOOKSTRUCT.
-            let kbd = unsafe { *(l_param.0 as *const KBDLLHOOKSTRUCT) };
+        // SAFETY: l_param pada WH_KEYBOARD_LL menunjuk ke struktur KBDLLHOOKSTRUCT.
+        let kbd = unsafe { *(l_param.0 as *const KBDLLHOOKSTRUCT) };
 
-            // Tombol '1' memiliki Virtual Key code 0x31 (VK_1)
-            const VK_1: u32 = 0x31;
-            if kbd.vkCode == VK_1 {
-                // SAFETY: GetForegroundWindow aman dipanggil untuk memeriksa jendela aktif saat ini.
-                let fg_hwnd = unsafe { GetForegroundWindow() };
-                if is_explorer_window(fg_hwnd) {
-                    let elapsed = start_time.elapsed().as_micros() as u64;
-                    record_latency(elapsed);
-                    tracing::debug!(latency_us = elapsed, "Tombol '1' ditelan di Explorer");
-                    // Mengembalikan nilai non-nol (1) untuk menelan tombol
-                    return LRESULT(1);
-                }
+        // 1. Abaikan event buatan sendiri atau event yang disuntikkan (injected)
+        let is_injected = (kbd.flags.0 & 0x10) != 0 || kbd.dwExtraInfo == KEYFLOW_EXTRA_INFO;
+        if is_injected {
+            // SAFETY: Meneruskan pesan keyboard ke hook berikutnya.
+            return unsafe { CallNextHookEx(None, code, w_param, l_param) };
+        }
+
+        let msg = w_param.0 as u32;
+        // Hanya proses penekanan tombol (down); pelepasan tombol (up) selalu diteruskan
+        if msg != WM_KEYDOWN && msg != WM_SYSKEYDOWN {
+            // SAFETY: Meneruskan pesan keyboard ke hook berikutnya.
+            return unsafe { CallNextHookEx(None, code, w_param, l_param) };
+        }
+
+        // Abaikan jika tombol yang ditekan adalah tombol modifier itu sendiri
+        let is_modifier_alone = matches!(
+            kbd.vkCode,
+            0x10 | 0x11 | 0x12 | 0x5B | 0x5C | 0xA0 | 0xA1 | 0xA2 | 0xA3 | 0xA4 | 0xA5
+        );
+        if is_modifier_alone {
+            // SAFETY: Meneruskan pesan keyboard ke hook berikutnya.
+            return unsafe { CallNextHookEx(None, code, w_param, l_param) };
+        }
+
+        let Some(key_name) = vk_to_key_name(kbd.vkCode) else {
+            // SAFETY: Meneruskan pesan keyboard ke hook berikutnya jika tombol tidak dikenali.
+            return unsafe { CallNextHookEx(None, code, w_param, l_param) };
+        };
+
+        // Baca status modifier saat ini
+        let ctrl = is_async_key_down(0x11);
+        let shift = is_async_key_down(0x10);
+        let alt = is_async_key_down(0x12);
+        let meta = is_async_key_down(0x5B) || is_async_key_down(0x5C);
+
+        let mut key_combo_str = String::new();
+        if ctrl {
+            key_combo_str.push_str("Ctrl+");
+        }
+        if alt {
+            key_combo_str.push_str("Alt+");
+        }
+        if shift {
+            key_combo_str.push_str("Shift+");
+        }
+        if meta {
+            key_combo_str.push_str("Meta+");
+        }
+        key_combo_str.push_str(key_name);
+
+        let event = crate::KeyEvent {
+            key: key_combo_str,
+            pressed: true,
+        };
+
+        // Panggil handler terdaftar
+        let guard = HOOK_CALLBACK.read().ok();
+        if let Some(Some(ref handler)) = guard.as_deref() {
+            let decision = handler(event);
+            let elapsed = start_time.elapsed().as_micros() as u64;
+            record_latency(elapsed);
+
+            if decision == crate::HookDecision::Swallow {
+                tracing::debug!(latency_us = elapsed, "Tombol ditelan oleh KeyFlow");
+                // Mengembalikan nilai non-nol (1) untuk menelan tombol
+                return LRESULT(1);
             }
         }
 
@@ -215,21 +354,31 @@ unsafe extern "system" fn low_level_keyboard_proc(
 /// Pengelola siklus hidup keyboard hook Windows.
 pub struct WindowsHookManager {
     is_running: Arc<AtomicBool>,
-    thread_handle: Option<std::thread::JoinHandle<()>>,
+    thread_handle: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 impl WindowsHookManager {
     pub fn new() -> Self {
         Self {
             is_running: Arc::new(AtomicBool::new(false)),
-            thread_handle: None,
+            thread_handle: std::sync::Mutex::new(None),
         }
     }
+}
 
+impl crate::KeyboardHook for WindowsHookManager {
     /// Menjalankan keyboard hook pada thread khusus dengan message loop Win32.
-    pub fn start(&mut self) -> Result<(), crate::PlatformError> {
+    fn start(
+        &self,
+        handler: Box<dyn Fn(crate::KeyEvent) -> crate::HookDecision + Send + Sync>,
+    ) -> Result<(), crate::PlatformError> {
         if self.is_running.load(Ordering::SeqCst) {
             return Ok(());
+        }
+
+        // Daftarkan callback handler
+        if let Ok(mut lock) = HOOK_CALLBACK.write() {
+            *lock = Some(handler);
         }
 
         let is_running = self.is_running.clone();
@@ -288,7 +437,9 @@ impl WindowsHookManager {
             })
             .map_err(|e| crate::PlatformError::Os(format!("Gagal membuat thread hook: {e}")))?;
 
-        self.thread_handle = Some(handle);
+        if let Ok(mut lock) = self.thread_handle.lock() {
+            *lock = Some(handle);
+        }
 
         init_rx
             .recv()
@@ -296,7 +447,7 @@ impl WindowsHookManager {
     }
 
     /// Menghentikan keyboard hook dan keluar dari message loop.
-    pub fn stop(&mut self) {
+    fn stop(&self) {
         if !self.is_running.load(Ordering::SeqCst) {
             return;
         }
@@ -309,8 +460,14 @@ impl WindowsHookManager {
             }
         }
 
-        if let Some(handle) = self.thread_handle.take() {
-            let _ = handle.join();
+        if let Ok(mut lock) = self.thread_handle.lock() {
+            if let Some(handle) = lock.take() {
+                let _ = handle.join();
+            }
+        }
+
+        if let Ok(mut lock) = HOOK_CALLBACK.write() {
+            *lock = None;
         }
 
         self.is_running.store(false, Ordering::SeqCst);
@@ -319,6 +476,7 @@ impl WindowsHookManager {
 
 impl Drop for WindowsHookManager {
     fn drop(&mut self) {
+        use crate::KeyboardHook;
         self.stop();
     }
 }

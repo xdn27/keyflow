@@ -11,6 +11,7 @@
 
 #[cfg(target_os = "windows")]
 fn main() {
+    use keyflow_platform::{HookDecision, KeyboardHook};
     use std::io::{self, BufRead};
     use std::path::PathBuf;
     use std::time::Duration;
@@ -27,8 +28,18 @@ fn main() {
     println!("   -> COM Shell STA aktif.");
 
     println!("2. Memasang hook WH_KEYBOARD_LL...");
-    let mut hook_manager = keyflow_platform::windows::WindowsHookManager::new();
-    if let Err(e) = hook_manager.start() {
+    let hook_manager = keyflow_platform::windows::WindowsHookManager::new();
+    let hook_res = hook_manager.start(Box::new(|event| {
+        if event.pressed && event.key == "1" {
+            // SAFETY: GetForegroundWindow aman dipanggil untuk memeriksa jendela aktif saat ini.
+            let hwnd = unsafe { ::windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+            if keyflow_platform::windows::is_explorer_window(hwnd) {
+                return HookDecision::Swallow;
+            }
+        }
+        HookDecision::PassThrough
+    }));
+    if let Err(e) = hook_res {
         eprintln!("Gagal memasang hook keyboard: {e}");
         return;
     }

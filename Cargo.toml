@@ -24,6 +24,9 @@ directories = "6.0"
 notify = "8.0"
 trash = "5.2"
 tempfile = "3.14"
+anyhow = "1.0"
+crossbeam-channel = "0.5"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

@@ -49,14 +49,14 @@ Dependensi kandidat: `serde`, `serde_yaml` (periksa status; alternatif `serde_ym
 
 Dependensi kandidat: `windows`, `tray-icon`, `notify-rust`, `tracing-subscriber`, `anyhow`, `crossbeam-channel` atau `tokio`, `enigo` (atau `SendInput` langsung).
 
-- [ ] **T2.1** Implementasi `KeyboardHook` dan `FileManagerContext` Windows dari hasil M0 (isolasi `unsafe`, `// SAFETY:`). Catatan: modul `windows` di `keyflow-platform` bentrok namanya dengan crate `windows`; rujuk crate dengan `::windows::...` atau ganti nama modul (mis. `win`).
-- [ ] **T2.2** Cache konteks (window fokus + folder aktif) di thread terpisah; callback hook hanya membaca cache + tabel rule, **fail-open**. (`architecture.md`)
-- [ ] **T2.3** Worker: ambil seleksi, konfirmasi ulang konteks, jalankan aksi, catat undo, kirim notifikasi, `select_next` (tandai event buatan sendiri).
-- [ ] **T2.4** Tray: enable/disable global, reload config, buka folder config, buka log, keluar.
-- [ ] **T2.5** Notifikasi OS ("Dipindahkan ke 01_Dipakai"), notifikasi config rusak.
-- [ ] **T2.6** Hotkey undo (default `Ctrl+Shift+Z`) lewat rule `action: undo`.
-- [ ] **T2.7** `dry_run` global + per profil.
-- [ ] **T2.8** Uji manual Windows memakai `docs/MANUAL_TESTING.md`; ukur CPU idle dan latensi.
+- [x] **T2.1** Implementasi `KeyboardHook` dan `FileManagerContext` Windows dari hasil M0 (isolasi `unsafe`, `// SAFETY:`). Catatan: modul `windows` di `keyflow-platform` bentrok namanya dengan crate `windows`; rujuk crate dengan `::windows::...` atau ganti nama modul (mis. `win`).
+- [x] **T2.2** Cache konteks (window fokus + folder aktif) di thread terpisah; callback hook hanya membaca cache + tabel rule, **fail-open**. (`architecture.md`)
+- [x] **T2.3** Worker: ambil seleksi, konfirmasi ulang konteks, jalankan aksi, catat undo, kirim notifikasi, `select_next` (tandai event buatan sendiri).
+- [x] **T2.4** Tray: enable/disable global, reload config, buka folder config, buka log, keluar.
+- [x] **T2.5** Notifikasi OS ("Dipindahkan ke 01_Dipakai"), notifikasi config rusak.
+- [x] **T2.6** Hotkey undo (default `Ctrl+Shift+Z`) lewat rule `action: undo`.
+- [x] **T2.7** `dry_run` global + per profil.
+- [x] **T2.8** Uji manual Windows memakai `docs/MANUAL_TESTING.md`; ukur CPU idle dan latensi.
 
 **Selesai M2 bila**: seluruh Kriteria Selesai MVP (`milestones.md`) terpenuhi di Windows.
 

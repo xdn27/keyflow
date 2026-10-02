@@ -999,12 +999,17 @@ pub(crate) fn move_cross_device(source: &Path, destination: &Path) -> io::Result
     let src_len = src_meta.len();
 
     if source.is_dir() {
+        let dest_existed_before = destination.exists();
         if let Err(e) = copy_dir_recursive(source, destination) {
-            let _ = fs::remove_dir_all(destination);
+            if !dest_existed_before {
+                let _ = fs::remove_dir_all(destination);
+            }
             return Err(e);
         }
         if let Err(e) = verify_dir_copied(source, destination) {
-            let _ = fs::remove_dir_all(destination);
+            if !dest_existed_before {
+                let _ = fs::remove_dir_all(destination);
+            }
             return Err(e);
         }
         fs::remove_dir_all(source)?;
