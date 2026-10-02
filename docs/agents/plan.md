@@ -21,11 +21,11 @@ Sudah ada: workspace Cargo (3 crate, kosong/stub), trait platform di `keyflow-pl
 
 Tujuan: membuktikan kelayakan. Boleh kasar, tetapi simpan di `crates/keyflow-platform/src/windows/` atau `examples/` dan beri label sementara. Hasil dicatat di `docs/spikes/m0-findings.md`.
 
-- [ ] **T0.0** Pasang toolchain Rust, jalankan `cargo build --workspace`, `clippy`, `fmt`, `test`. Perbaiki skeleton bila ada galat. Commit sebagai baseline.
-- [ ] **T0.1** Hook `WH_KEYBOARD_LL` (crate `windows`) dengan message loop. Telan tombol `1` **hanya** saat jendela fokus adalah Explorer (`explorer.exe`, class `CabinetWClass`); di aplikasi lain tombol lolos. Ukur latensi callback.
-- [ ] **T0.2** Baca folder aktif dan file terpilih dari Explorer via COM (`IShellWindows` -> cocokkan HWND -> `IShellBrowser`/`IFolderView2`), di thread STA khusus. Uji: banyak jendela/tab, tanpa seleksi, folder khusus.
-- [ ] **T0.3** Pindahkan file terpilih ke satu folder tujuan (boleh `std::fs::rename`; versi aman penuh dikerjakan di M1).
-- [ ] **T0.4** Lengkapi `docs/spikes/m0-findings.md`: latensi, kendala, kebutuhan fallback clipboard, keputusan desain.
+- [x] **T0.0** Pasang toolchain Rust, jalankan `cargo build --workspace`, `clippy`, `fmt`, `test`. Perbaiki skeleton bila ada galat. Commit sebagai baseline.
+- [x] **T0.1** Hook `WH_KEYBOARD_LL` (crate `windows`) dengan message loop. Telan tombol `1` **hanya** saat jendela fokus adalah Explorer (`explorer.exe`, class `CabinetWClass`); di aplikasi lain tombol lolos. Ukur latensi callback.
+- [x] **T0.2** Baca folder aktif dan file terpilih dari Explorer via COM (`IShellWindows` -> cocokkan HWND -> `IShellBrowser`/`IFolderView2`), di thread STA khusus. Uji: banyak jendela/tab, tanpa seleksi, folder khusus.
+- [x] **T0.3** Pindahkan file terpilih ke satu folder tujuan (boleh `std::fs::rename`; versi aman penuh dikerjakan di M1).
+- [x] **T0.4** Lengkapi `docs/spikes/m0-findings.md`: latensi, kendala, kebutuhan fallback clipboard, keputusan desain.
 
 **Selesai M0 bila**: ketiga bukti (T0.1-T0.3) berjalan nyata di Windows. Berhenti dan laporkan; tunggu persetujuan sebelum M1.
 

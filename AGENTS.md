@@ -6,7 +6,7 @@ Aplikasi desktop Rust (system tray) yang menjalankan **shortcut keyboard sadar k
 
 ## Status
 
-Skeleton siap, belum ada fungsi. Workspace Cargo (3 crate stub) ditulis tanpa toolchain dan **belum pernah dikompilasi**; verifikasi dulu (T0.0). Mulai dari `docs/agents/plan.md`. Pekerjaan per milestone M0-M5; platform target: Windows, lalu macOS, lalu Linux (X11).
+Skeleton diverifikasi dan toolchain dipasang (T0.0). Spike teknis Windows M0 selesai (T0.0-T0.4): hook keyboard `WH_KEYBOARD_LL`, pembacaan folder aktif & seleksi via COM Shell Windows, pemindahan file aman, dan laporan temuan di `docs/spikes/m0-findings.md`. Menunggu persetujuan sebelum lanjut ke M1 (Inti `keyflow-core`). Platform target: Windows, lalu macOS, lalu Linux (X11).
 
 ## Perintah
 

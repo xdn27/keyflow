@@ -13,6 +13,10 @@ publish = false
 # [workspace.dependencies] bila dipakai lebih dari satu crate.
 # Dependensi OS-spesifik wajib di [target.'cfg(...)'.dependencies].
 
+[workspace.dependencies]
+thiserror = "2.0"
+tracing = "0.1"
+
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 
