@@ -1560,7 +1560,7 @@ dependencies = [
 
 [[package]]
 name = "keyflow-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "crossbeam-channel",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "keyflow-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "directories",
  "globset",
@@ -1595,7 +1595,7 @@ dependencies = [
 
 [[package]]
 name = "keyflow-platform"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "core-foundation 0.10.1",
  "core-graphics 0.24.0",
