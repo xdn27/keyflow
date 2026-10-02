@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use directories::ProjectDirs;
 
 pub mod save;
+pub mod state;
 
 /// Lokasi `config.yaml` yang sama dengan yang dipakai aplikasi utama.
 pub fn default_config_path() -> anyhow::Result<PathBuf> {
