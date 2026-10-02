@@ -6,5 +6,6 @@
 
 pub mod actions;
 pub mod config;
+pub mod config_edit;
 pub mod matcher;
 pub mod undo;
