@@ -22,6 +22,14 @@ fn main() -> anyhow::Result<()> {
         )
         .init();
 
+    // Subperintah opsional; tanpa argumen, perilaku aplikasi tidak berubah.
+    if let Some(command) = std::env::args().nth(1) {
+        return match command.as_str() {
+            "settings" => settings_ui::run(settings_ui::default_config_path()?),
+            other => anyhow::bail!("Perintah tidak dikenal: {other}. Perintah tersedia: settings"),
+        };
+    }
+
     #[cfg(target_os = "windows")]
     {
         app_windows::run()

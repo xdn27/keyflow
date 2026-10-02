@@ -4,15 +4,15 @@
 //! bercampur dengan hook/tray. Hasil simpan berupa `config.yaml` valid; aplikasi yang
 //! sedang berjalan mengambilnya lewat hot-reload yang sudah ada.
 
-// SEMENTARA: dihapus di Task 5 saat modul ini mulai dipakai dari `main`.
-#![allow(dead_code)]
-
 use std::path::PathBuf;
 
 use directories::ProjectDirs;
 
 pub mod save;
 pub mod state;
+pub mod view;
+
+pub use view::run;
 
 /// Lokasi `config.yaml` yang sama dengan yang dipakai aplikasi utama.
 pub fn default_config_path() -> anyhow::Result<PathBuf> {
