@@ -8,6 +8,8 @@ Aplikasi desktop Rust (system tray) yang menjalankan **shortcut keyboard sadar k
  
 Seluruh Milestone MVP: **M0** (Spike Windows), **M1** (Inti `keyflow-core`), **M2** (Aplikasi Windows lengkap), **M3** (Dukungan macOS), **M4** (Dukungan Linux X11 & Wayland fail-open), dan **M5** (Pengemasan CI/CD multi-platform, workflow rilis GitHub Actions, dokumentasi final, serta audit adversarial keselamatan data) telah **SELESAI 100%**. Seluruh test (24 unit/integration test) lolos, linter clippy 0 warning, dan kompilasi multi-target (Windows, macOS Intel/Silicon, Linux) terverifikasi hijau. Proyek siap untuk rilis versi v0.1.0.
 
+Pasca-MVP: **GUI Pengaturan tahap 1** (blok `settings:` global lewat `keyflow settings`, egui, proses terpisah) selesai. Implementasi dan test otomatis lolos; uji manual per OS (baris 20-24 di `docs/MANUAL_TESTING.md`) belum dijalankan. Tahap 2 (editor profil/rule) belum dikerjakan.
+
 ## Perintah
 
 ```bash

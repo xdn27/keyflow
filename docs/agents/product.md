@@ -45,10 +45,11 @@ Jika beberapa rule cocok untuk tombol yang sama, **rule dengan konteks paling sp
 - System tray: enable/disable global, reload config, buka folder config, buka log, keluar.
 - Mode `dry_run` global dan per profil: hanya menampilkan apa yang akan terjadi.
 - Hot-reload konfigurasi saat file berubah.
+- GUI Pengaturan (tahap 1): `keyflow settings` atau item tray "Pengaturan..." mengubah blok `settings:` global tanpa menghapus komentar/profil di `config.yaml`.
 
 ## Pasca-MVP (JANGAN dikerjakan, tapi desain tidak boleh menghalanginya)
 
-- UI pengaturan (kandidat: Tauri atau egui).
+- UI pengaturan tahap 2: editor profil, konteks, dan rule (tahap 1 sudah ada, lihat di bagian MVP).
 - Preset "Sorting Foto" satu klik.
 - Aksi: jalankan skrip dengan path file sebagai argumen, buka dengan aplikasi tertentu, buat subfolder otomatis berdasarkan tanggal/ekstensi.
 - Aksi sistem (toggle Wi-Fi, volume, dsb.) sebagai action provider terpisah.

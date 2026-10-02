@@ -35,6 +35,11 @@ Tandai hasil pengujian per sistem operasi:
 | 17 | **(macOS) Verifikasi Izin**: Buka KeyFlow tanpa izin Accessibility; pastikan dialog izin muncul dengan instruksi jelas dan KeyFlow menolak hook tanpa menelan tombol. | - | [ ] | - |
 | 18 | **(Linux) Deteksi Sesi Wayland**: Jalankan KeyFlow di sesi Wayland (`echo $XDG_SESSION_TYPE`); pastikan muncul log peringatan dan tombol 100% fail-open. | - | - | [ ] |
 | 19 | **(Windows) Banyak Tab & Jendela Explorer**: Buka beberapa jendela dan tab Explorer; KeyFlow secara tepat membaca folder dan seleksi dari tab yang sedang aktif. | [ ] | - | - |
+| 20 | **GUI Pengaturan membuka & memuat**: Jalankan `keyflow settings` (atau klik "Pengaturan..." di tray Windows); jendela menampilkan nilai dari `config.yaml`. Klik tray dua kali: tidak muncul jendela kedua. | [ ] | [ ] | [ ] |
+| 21 | **Simpan menjaga komentar**: Ubah `dry_run`, klik Simpan; `config.yaml` berubah hanya pada nilai itu, komentar dan profil tetap utuh. | [ ] | [ ] | [ ] |
+| 22 | **Hot-reload dari GUI**: Dengan KeyFlow berjalan, simpan dari GUI; perubahan langsung berlaku (mis. `dry_run: true` membuat shortcut hanya notifikasi) tanpa restart. | [ ] | [ ] | [ ] |
+| 23 | **Konfirmasi `overwrite`**: Memilih `overwrite` memunculkan dialog peringatan; "Batal" mengembalikan pilihan sebelumnya. | [ ] | [ ] | [ ] |
+| 24 | **Config diubah di luar GUI**: Biarkan GUI terbuka, edit `config.yaml` di editor lain, lalu klik Simpan di GUI; muncul peringatan, isi editor tidak tertimpa. Config yang sedang rusak: GUI menampilkan error dan menolak menyimpan. | [ ] | [ ] | [ ] |
 | 20 | **Penghentian Paksa (Crash Resiliency)**: Matikan proses paksa (`kill -9` / End Task) saat aksi berlangsung; pastikan tidak ada file yang hilang dan intent log mencukupi untuk audit pemulihan. | [ ] | [ ] | [ ] |
 
 ---

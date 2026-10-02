@@ -90,4 +90,4 @@ Jika sebuah crate tidak lagi terawat atau tidak cocok, pilih alternatif dan jela
 
 - `Action` sebagai enum yang dapat diperluas (atau trait `ActionProvider`) agar aksi skrip/sistem dapat ditambah tanpa mengubah matcher.
 - `FileManagerContext` memiliki satu implementasi per file manager; pemilihan implementasi berdasarkan proses window fokus.
-- Config bersifat berversi sehingga UI pengaturan kelak bisa membaca/menulis file yang sama.
+- Config bersifat berversi. GUI pengaturan (`keyflow-app/src/settings_ui`) membaca dan menulis berkas yang sama lewat `keyflow-core::config_edit` (`patch_settings` menambal teks YAML tanpa mengubah komentar; `render_full` hanya jalur cadangan dengan konfirmasi). GUI berjalan sebagai **proses terpisah** (`keyflow settings`) sehingga event loop egui tidak bercampur dengan hook/tray; perubahan diterapkan lewat hot-reload yang sudah ada. Tahap 2 (editor profil/rule) cukup menambah fungsi patch untuk blok `profiles:`.
